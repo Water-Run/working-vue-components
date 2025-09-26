@@ -123,7 +123,7 @@ export interface StdTableConfig {
     /** 表格名称 */
     tableName: string;
     /** 表格字段列表 */
-    fields: TableField[];
+    fields: TableField[]; // "titile": 表头, "size": 宽度,整数,自动加和分配
     /** 表格初始高度(单页展示行数)，可选，默认10 */
     initialHeight?: number;
     /** 表格说明信息，可选，默认为空 */
