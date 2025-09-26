@@ -740,8 +740,8 @@ const saveToStorage = (): void => {
     const allData: StoredMarkingData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
     allData[currentTableId.value] = Object.fromEntries(markingsStorage.value)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(allData))
-  } catch (error) {
-    console.warn('保存标记失败:', error)
+  } catch{
+
   }
 }
 
@@ -754,8 +754,8 @@ const loadFromStorage = (): void => {
     Object.entries(tableData).forEach(([rowId, marking]) => {
       markingsStorage.value.set(rowId, marking)
     })
-  } catch (error) {
-    console.warn('加载标记失败:', error)
+  } catch  {
+
   }
 }
 
@@ -1203,16 +1203,11 @@ const clearAllMarkings = (): void => {
   isMarkMenuVisible.value = false
 }
 
-const exportMarkingData = (): void => {
+const exportMarkingData = async (): Promise<void> => {
   const highlightedData: any[] = []
   const strikethroughData: any[] = []
 
   const currentData = displayData.value
-
-  console.log('调试信息:', {
-    currentDataLength: currentData.length,
-    markingsStorageSize: markingsStorage.value.size
-  })
 
   currentData.forEach((row) => {
     const cleanRowData: any = {}
@@ -1230,7 +1225,7 @@ const exportMarkingData = (): void => {
     }
   })
 
-  const fullData = getFullTableData()
+  const fullData = await getFullTableData()
   if (fullData.length > 0) {
     highlightedData.length = 0
     strikethroughData.length = 0
@@ -1273,7 +1268,7 @@ const exportMarkingData = (): void => {
     })
   }
 
-  const meta = generateExportMeta()
+  const meta = await generateExportMeta()
   const timestamp = new Date().toISOString()
 
   const content = `"""
@@ -1604,11 +1599,32 @@ if __name__ == '__main__':
   isMarkMenuVisible.value = false
 }
 
-const getFullTableData = (): any[] =>
-    window.loadTableData ? window.stdTableConfig?.data ?? tableData.value : tableData.value
+const getFullTableData = async (): Promise<any[]> => {
+  if (!window.loadTableData) {
+    return window.stdTableConfig?.data ?? tableData.value
+  }
+
+  try {
+    const response = await window.loadTableData({
+      page: 1,
+      pageSize: totalCount.value || 999999
+    })
+
+    if (response.success) {
+      return response.data
+    }
+  } catch (error) {
+    currentStatus.value = 'error'
+    tableData.value = []
+    totalCount.value = 0
+    throw error
+  }
+
+  return tableData.value
+}
 
 // 生成导出元信息
-const generateExportMeta = (): { exportTime: string, hash: string, tableName: string, totalCount: number } => {
+const generateExportMeta = async (): Promise<{ exportTime: string, hash: string, tableName: string, totalCount: number }> => {
   const now = new Date()
   const exportTime = now.toLocaleString('zh-CN', {
     year: 'numeric',
@@ -1623,13 +1639,13 @@ const generateExportMeta = (): { exportTime: string, hash: string, tableName: st
     exportTime,
     hash,
     tableName: displayTableName.value,
-    totalCount: getFullTableData().length
+    totalCount: (await getFullTableData()).length
   }
 }
 
 // 导出功能
-const exportToCSV = (): void => {
-  const fullData = getFullTableData()
+const exportToCSV = async (): Promise<void> => {
+  const fullData = await getFullTableData()
   if (!fullData.length) {
     downloadFile('导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun', `${generateFileName('CSV')}.csv`)
     isExportMenuVisible.value = false
@@ -1637,31 +1653,44 @@ const exportToCSV = (): void => {
   }
 
   const headers = displayFields.value.map(field => field.title).join(',')
-  const rows = fullData.map(row =>
-      displayFields.value.map(field => {
-        const value = row[field.key] || ''
+  const rows = fullData.map(row => {
+    if (Array.isArray(row)) {
+      return displayFields.value.map((_field, index) => {
+        const value = row[index] || ''
         return `"${String(value).replace(/"/g, '""')}"`
       }).join(',')
-  ).join('\n')
+    } else {
+      const values = Object.values(row)
+      return displayFields.value.map((_field, index) => {
+        const value = values[index] || ''
+        return `"${String(value).replace(/"/g, '""')}"`
+      }).join(',')
+    }
+  }).join('\n')
   const content = headers + '\n' + rows
   downloadFile(content, `${generateFileName('CSV')}.csv`)
   isExportMenuVisible.value = false
 }
 
-const exportToMarkdown = (): void => {
-  const fullData = getFullTableData()
+const exportToMarkdown = async (): Promise<void> => {
+  const fullData = await getFullTableData()
   if (!fullData.length) {
     downloadFile('导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun', `${generateFileName('Markdown')}.md`)
     isExportMenuVisible.value = false
     return
   }
 
-  const meta = generateExportMeta()
+  const meta = await generateExportMeta()
   const headers = '| ' + displayFields.value.map(field => field.title).join(' | ') + ' |'
   const separator = '|' + displayFields.value.map(() => '---').join('|') + '|'
-  const rows = fullData.map(row =>
-      '| ' + displayFields.value.map(field => row[field.key] || '').join(' | ') + ' |'
-  ).join('\n')
+  const rows = fullData.map(row => {
+    if (Array.isArray(row)) {
+      return '| ' + displayFields.value.map((_field, index) => row[index] || '').join(' | ') + ' |'
+    } else {
+      const values = Object.values(row)
+      return '| ' + displayFields.value.map((_field, index) => values[index] || '').join(' | ') + ' |'
+    }
+  }).join('\n')
 
   const content = `# ${meta.tableName}
 
@@ -1684,15 +1713,15 @@ ${rows}
   isExportMenuVisible.value = false
 }
 
-const exportToJSON = (): void => {
-  const fullData = getFullTableData()
+const exportToJSON = async (): Promise<void> => {
+  const fullData = await getFullTableData()
   if (!fullData.length) {
     downloadFile('{"error": "导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun"}', `${generateFileName('JSON')}.json`)
     isExportMenuVisible.value = false
     return
   }
 
-  const meta = generateExportMeta()
+  const meta = await generateExportMeta()
   const exportData = {
     meta: {
       tableName: meta.tableName,
@@ -1714,9 +1743,9 @@ const exportToJSON = (): void => {
   isExportMenuVisible.value = false
 }
 
-const exportToHTML = (): void => {
-  const fullData = getFullTableData()
-  const meta = generateExportMeta()
+const exportToHTML = async (): Promise<void> => {
+  const fullData = await getFullTableData()
+  const meta = await generateExportMeta()
   if (!fullData.length) {
     downloadFile(`<html><body><h1>导出失败：数据获取异常</h1><p>这最可能是由于数据量过大受浏览器JS引擎限制导致的，或者数据可能为空。使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。<br/>导出的基本信息：${meta.tableName}，${meta.exportTime}，${meta.hash}<br/>Vue 标准表格组件@WaterRun</p></body></html>`, `${generateFileName('HTML')}.html`)
     isExportMenuVisible.value = false
@@ -1733,11 +1762,20 @@ const exportToHTML = (): void => {
     </th>`
   ).join('')
 
-  const rows = fullData.map((row, rowIndex) =>
-      `<tr data-row="${rowIndex}">` +
-      displayFields.value.map(field => `<td><div class="cell-content">${row[field.key] || ''}</div></td>`).join('') +
-      '</tr>'
-  ).join('\n')
+  const rows = fullData.map((row, rowIndex) => {
+    let cellsHtml = ''
+    if (Array.isArray(row)) {
+      cellsHtml = displayFields.value.map((_field, index) =>
+          `<td><div class="cell-content">${row[index] || ''}</div></td>`
+      ).join('')
+    } else {
+      const values = Object.values(row)
+      cellsHtml = displayFields.value.map((_field, index) =>
+          `<td><div class="cell-content">${values[index] || ''}</div></td>`
+      ).join('')
+    }
+    return `<tr data-row="${rowIndex}">${cellsHtml}</tr>`
+  }).join('\n')
 
   // 构建字段选项
   const fieldOptions = displayFields.value.map((field, index) =>
@@ -2524,19 +2562,24 @@ const exportToHTML = (): void => {
   isExportMenuVisible.value = false
 }
 
-const exportToText = (): void => {
-  const fullData = getFullTableData()
+const exportToText = async (): Promise<void> => {
+  const fullData = await getFullTableData()
   if (!fullData.length) {
     downloadFile('导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun', `${generateFileName('Text')}.txt`)
     isExportMenuVisible.value = false
     return
   }
 
-  const meta = generateExportMeta()
+  const meta = await generateExportMeta()
   const headers = displayFields.value.map(field => field.title).join('\t')
-  const rows = fullData.map(row =>
-      displayFields.value.map(field => row[field.key] || '').join('\t')
-  ).join('\n')
+  const rows = fullData.map(row => {
+    if (Array.isArray(row)) {
+      return displayFields.value.map((_field, index) => row[index] || '').join('\t')
+    } else {
+      const values = Object.values(row)
+      return displayFields.value.map((_field, index) => values[index] || '').join('\t')
+    }
+  }).join('\n')
 
   const content = `${meta.tableName}
 导出时间: ${meta.exportTime}
@@ -2552,19 +2595,20 @@ ${rows}
   isExportMenuVisible.value = false
 }
 
-const exportToXML = (): void => {
-  const fullData = getFullTableData()
+const exportToXML = async (): Promise<void> => {
+  const fullData = await getFullTableData()
   if (!fullData.length) {
     downloadFile('<?xml version="1.0" encoding="UTF-8"?><error>导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun</error>', `${generateFileName('XML')}.xml`)
     isExportMenuVisible.value = false
     return
   }
 
-  const meta = generateExportMeta()
+  const meta = await generateExportMeta()
   const rows = fullData.map(row => {
-    const fields = displayFields.value.map(field =>
-        `    <${field.key}>${row[field.key] || ''}</${field.key}>`
-    ).join('\n')
+    const fields = displayFields.value.map((field, index) => {
+      const value = Array.isArray(row) ? (row[index] || '') : (Object.values(row)[index] || '')
+      return `    <${field.key}>${value}</${field.key}>`
+    }).join('\n')
     return `  <row>\n${fields}\n  </row>`
   }).join('\n')
 
@@ -2588,15 +2632,15 @@ const exportToXML = (): void => {
   isExportMenuVisible.value = false
 }
 
-const exportToYML = (): void => {
-  const fullData = getFullTableData()
+const exportToYML = async (): Promise<void> => {
+  const fullData = await getFullTableData()
   if (!fullData.length) {
     downloadFile('error: "导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun"', `${generateFileName('YML')}.yml`)
     isExportMenuVisible.value = false
     return
   }
 
-  const meta = generateExportMeta()
+  const meta = await generateExportMeta()
   const content = `# ${meta.tableName} 数据导出
 meta:
 tableName: "${meta.tableName}"
@@ -2608,26 +2652,33 @@ exportedBy: "Vue标准表格组件@WaterRun"
 fields:
 ${displayFields.value.map(field => `  - key: "${field.key}"\n    title: "${field.title}"`).join('\n')}
 
-  data:
-  ${fullData.map(row =>
-          '  - ' + displayFields.value.map(field =>
-              `${field.key}: "${row[field.key] || ''}"`
-          ).join('\n    ')
-  ).join('\n')}`
+data:
+${fullData.map(row => {
+    if (Array.isArray(row)) {
+      return '  - ' + displayFields.value.map((field, index) =>
+          `${field.key}: "${row[index] || ''}"`
+      ).join('\n    ')
+    } else {
+      const values = Object.values(row)
+      return '  - ' + displayFields.value.map((field, index) =>
+          `${field.key}: "${values[index] || ''}"`
+      ).join('\n    ')
+    }
+  }).join('\n')}`
 
   downloadFile(content, `${generateFileName('YML')}.yml`)
   isExportMenuVisible.value = false
 }
 
-const exportToTOML = (): void => {
-  const fullData = getFullTableData()
+const exportToTOML = async (): Promise<void> => {
+  const fullData = await getFullTableData()
   if (!fullData.length) {
     downloadFile('error = "导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun"', `${generateFileName('TOML')}.toml`)
     isExportMenuVisible.value = false
     return
   }
 
-  const meta = generateExportMeta()
+  const meta = await generateExportMeta()
   const content = `# ${meta.tableName} 数据导出
 
 [meta]
@@ -2639,25 +2690,32 @@ exportedBy = "Vue标准表格组件@WaterRun"
 
 ${displayFields.value.map(field => `[[fields]]\nkey = "${field.key}"\ntitle = "${field.title}"`).join('\n\n')}
 
-${fullData.map((row, _index) =>
-          `[[data]]\n` + displayFields.value.map(field =>
-              `${field.key} = "${row[field.key] || ''}"`
-          ).join('\n')
-  ).join('\n\n')}`
+${fullData.map((row, _index) => {
+    if (Array.isArray(row)) {
+      return `[[data]]\n` + displayFields.value.map((field, index) =>
+          `${field.key} = "${row[index] || ''}"`
+      ).join('\n')
+    } else {
+      const values = Object.values(row)
+      return `[[data]]\n` + displayFields.value.map((field, index) =>
+          `${field.key} = "${values[index] || ''}"`
+      ).join('\n')
+    }
+  }).join('\n\n')}`
 
   downloadFile(content, `${generateFileName('TOML')}.toml`)
   isExportMenuVisible.value = false
 }
 
-const exportToSQL = (): void => {
-  const fullData = getFullTableData()
+const exportToSQL = async (): Promise<void> => {
+  const fullData = await getFullTableData()
   if (!fullData.length) {
     downloadFile('-- 导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun', `${generateFileName('SQL')}.sql`)
     isExportMenuVisible.value = false
     return
   }
 
-  const meta = generateExportMeta()
+  const meta = await generateExportMeta()
   const tableName = meta.tableName.replace(/[^a-zA-Z0-9_]/g, '_')
   const fields = displayFields.value.map(field => `${field.key} VARCHAR(255)`).join(',\n  ')
   const createTable = `-- ${meta.tableName} 数据导出
@@ -2671,9 +2729,11 @@ ${fields}
 
 `
   const insertRows = fullData.map(row => {
-    const values = displayFields.value.map(field => `'${(row[field.key] || '').toString().replace(/'/g, "''")}'`).join(', ')
-    return `INSERT INTO ${tableName}
-            VALUES (${values});`
+    const values = displayFields.value.map((_field, index) => {
+      const value = Array.isArray(row) ? (row[index] || '') : (Object.values(row)[index] || '')
+      return `'${value.toString().replace(/'/g, "''")}'`
+    }).join(', ')
+    return `INSERT INTO ${tableName} VALUES (${values});`
   }).join('\n')
 
   const content = createTable + insertRows
@@ -2681,15 +2741,15 @@ ${fields}
   isExportMenuVisible.value = false
 }
 
-const exportToPython = (): void => {
-  const fullData = getFullTableData()
+const exportToPython = async (): Promise<void> => {
+  const fullData = await getFullTableData()
   if (!fullData.length) {
     downloadFile('# 导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun\ndata = []', `${generateFileName('Python')}.py`)
     isExportMenuVisible.value = false
     return
   }
 
-  const meta = generateExportMeta()
+  const meta = await generateExportMeta()
   const content = `# ${meta.tableName} 数据导出
 # 导出时间: ${meta.exportTime}
 # 哈希识别码: ${meta.hash}
@@ -2924,6 +2984,7 @@ const updateTableHeight = (): void => {
   if (tableHeight.value > 75) tableHeight.value = 75
 
   pendingTableHeight.value = tableHeight.value
+  localStorage.setItem(`tableHeight_${currentTableId.value}`, tableHeight.value.toString())
   currentStatus.value = 'loading'
   tableData.value = []
   loadTableData()
@@ -2936,6 +2997,7 @@ const updateTableHeightFromSliderStep = (event: Event): void => {
 
   pendingTableHeight.value = newHeight
   tableHeight.value = newHeight
+  localStorage.setItem(`tableHeight_${currentTableId.value}`, newHeight.toString())
   currentStatus.value = 'loading'
   tableData.value = []
   loadTableData()
@@ -3491,16 +3553,25 @@ const getState = () => {
 }
 
 onMounted(() => {
-
   currentTableId.value = generateTableId()
   loadFromStorage()
 
+  const savedHeight = localStorage.getItem(`tableHeight_${currentTableId.value}`)
+  if (savedHeight) {
+    const height = parseInt(savedHeight)
+    if (height >= 5 && height <= 75) {
+      tableHeight.value = height
+      pendingTableHeight.value = height
+    }
+  }
 
   if (window.stdTableConfig) {
     config.value = window.stdTableConfig
-    const initialHeight = window.stdTableConfig.initialHeight || 15
-    tableHeight.value = Math.max(5, Math.min(75, initialHeight))
-    pendingTableHeight.value = tableHeight.value
+    if (!savedHeight) {
+      const initialHeight = window.stdTableConfig.initialHeight || 15
+      tableHeight.value = Math.max(5, Math.min(75, initialHeight))
+      pendingTableHeight.value = tableHeight.value
+    }
     currentPage.value = window.stdTableConfig.currentPage || 1
   }
 
