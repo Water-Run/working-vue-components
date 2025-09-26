@@ -1,0 +1,28 @@
+{
+  "name": "maojingstock-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run clean && vue-tsc --noEmit && vite build",
+    "build:watch": "npm run clean && vite build --watch",
+    "clean": "rimraf ../admin/Lib/vueapp",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@mdi/font": "^7.4.47",
+    "vue": "^3.4.0",
+    "vuetify": "3.3.23"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "rimraf": "^5.0.0",
+    "sass": "^1.92.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.0",
+    "vue-tsc": "^3.0.7"
+  }
+}

@@ -1,0 +1,9 @@
+# IDE / editor configs
+.idea/
+.vscode/
+
+# Temporary files
+.tmp/
+
+# Dependency directories
+node_modules/
