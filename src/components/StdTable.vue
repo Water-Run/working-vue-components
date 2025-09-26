@@ -299,7 +299,7 @@
               v-for="field in displayFields"
               :key="field.key"
               class="md-field-cell"
-              :style="{ width: field.width }"
+              :style="{ flex: `${field.flexGrow} 1 0` }"
           >
             {{ field.title }}
           </div>
@@ -359,7 +359,7 @@
                 v-for="field in displayFields"
                 :key="field.key"
                 class="md-data-cell"
-                :style="{ width: field.width }"
+                :style="{ flex: `${field.flexGrow} 1 0` }"
             >
               {{ row[field.key] || '' }}
             </div>
@@ -887,12 +887,11 @@ const displayFields = computed(() => {
   if (!config.value.fields || !Array.isArray(config.value.fields)) return []
 
   const processedFields = processFieldSizes(config.value.fields)
-  const totalSize = processedFields.reduce((sum, field) => sum + field.size, 0)
 
   return processedFields.map((field, index) => ({
     key: `field_${index}`,
     title: field.title,
-    width: `${((field.size / totalSize) * 100).toFixed(2)}%`,
+    flexGrow: field.size,
     size: field.size
   }))
 })
@@ -3997,18 +3996,23 @@ defineExpose({
   display: flex;
   background: linear-gradient(135deg, #f8f9fa 0%, #f1f3f4 100%);
   border-bottom: 2px solid #5f6368;
+  width: 100%;
 }
 
 .md-field-cell {
-  padding: 16px 20px;
+  padding: 16px 6px;
   font-weight: 500;
   color: #202124;
   text-align: center;
   border-right: 1px solid #dadce0;
-  min-width: 120px;
   font-size: 14px;
   letter-spacing: 0.25px;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  flex-grow: 1;
+  min-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .md-field-cell:last-child {
@@ -4027,6 +4031,7 @@ defineExpose({
   align-items: center;
   transition: background-color 0.2s ease;
   cursor: pointer;
+  width: 100%;
 }
 
 .md-data-row:hover {
@@ -4047,13 +4052,17 @@ defineExpose({
 }
 
 .md-data-cell {
-  padding: 12px 20px;
+  padding: 12px 6px;
   color: #3c4043;
   border-right: 1px solid #f1f3f4;
-  min-width: 120px;
-  word-wrap: break-word;
   font-size: 14px;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  flex-grow: 1;
+  min-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-wrap: break-word;
 }
 
 .md-data-cell:last-child {
