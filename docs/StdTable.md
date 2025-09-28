@@ -178,3 +178,11 @@ export interface StdTableConfig {
         disableOutput: true,
     };
 ```
+
+## 更新
+
+### `2025-09-28`
+
+- 修复了大容量导出的问题  
+- 增加了执行中的表状态,以及对应提示信息
+

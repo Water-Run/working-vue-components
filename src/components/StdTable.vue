@@ -1,7 +1,7 @@
 <!--
   标准化页面表格组件
   @author WaterRun
-  @date 2025-09-26
+  @date 2025-09-28
 -->
 
 <template>
@@ -30,11 +30,11 @@
             <div
                 class="md-function-trigger md-button-hover-unified"
                 :class="{
-                  'active': isMarkMenuVisible && !isMarkingDisabled,
-                  'disabled': isMarkingDisabled
+                  'active': isMarkMenuVisible && !isMarkingTemporarilyDisabled,
+                  'disabled': isMarkingTemporarilyDisabled
                 }"
-                @mouseenter="isMarkingDisabled ? showDisabledTooltip($event, '标记功能已被管理员禁用') : null; onMarkTriggerMouseEnter()"
-                @mouseleave="isMarkingDisabled ? hideDisabledTooltip() : onMarkTriggerMouseLeave()"
+                @mouseenter="isMarkingTemporarilyDisabled ? (isMarkingDisabled ? showDisabledTooltip($event, '标记功能已被管理员禁用') : null) : onMarkTriggerMouseEnter()"
+                @mouseleave="isMarkingTemporarilyDisabled ? (isMarkingDisabled ? hideDisabledTooltip() : null) : onMarkTriggerMouseLeave()"
                 :title="isMarkingDisabled ? '标记表(管理员已禁用)' : '标记表'"
                 ref="markButton"
             >
@@ -42,12 +42,12 @@
                   src="@material-icons/border_color_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
                   alt="标记"
                   class="md-function-icon"
-                  :class="{ 'disabled-icon': isMarkingDisabled }"
+                  :class="{ 'disabled-icon': isMarkingTemporarilyDisabled }"
               />
             </div>
             <transition name="function-popup">
               <div
-                  v-if="isMarkMenuVisible && !isMarkingDisabled"
+                  v-if="isMarkMenuVisible && !isMarkingTemporarilyDisabled"
                   class="md-function-popup"
                   ref="markPopup"
                   @mouseenter="onMarkPopupMouseEnter"
@@ -93,11 +93,11 @@
             <div
                 class="md-function-trigger md-button-hover-unified"
                 :class="{
-                  'active': isExportMenuVisible && !isOutputDisabled,
-                  'disabled': isOutputDisabled
+                  'active': isExportMenuVisible && !isOutputTemporarilyDisabled,
+                  'disabled': isOutputTemporarilyDisabled
                 }"
-                @mouseenter="isOutputDisabled ? showDisabledTooltip($event, '导出功能已被管理员禁用') : null; onExportTriggerMouseEnter()"
-                @mouseleave="isOutputDisabled ? hideDisabledTooltip() : onExportTriggerMouseLeave()"
+                @mouseenter="isOutputTemporarilyDisabled ? (isOutputDisabled ? showDisabledTooltip($event, '导出功能已被管理员禁用') : null) : onExportTriggerMouseEnter()"
+                @mouseleave="isOutputTemporarilyDisabled ? (isOutputDisabled ? hideDisabledTooltip() : null) : onExportTriggerMouseLeave()"
                 :title="isOutputDisabled ? '导出表(管理员已禁用)' : '导出表'"
                 ref="exportButton"
             >
@@ -105,27 +105,18 @@
                   src="@material-icons/file_export_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
                   alt="导出"
                   class="md-function-icon"
-                  :class="{ 'disabled-icon': isOutputDisabled }"
+                  :class="{ 'disabled-icon': isOutputTemporarilyDisabled }"
               />
             </div>
             <transition name="function-popup">
               <div
-                  v-if="isExportMenuVisible && !isOutputDisabled"
+                  v-if="isExportMenuVisible && !isOutputTemporarilyDisabled"
                   class="md-function-popup md-export-popup"
                   ref="exportPopup"
                   @mouseenter="onExportPopupMouseEnter"
                   @mouseleave="onExportPopupMouseLeave"
               >
                 <div class="md-export-scroll">
-                  <div class="md-function-item" @click="exportToCSV">
-                    <img
-                        src="@material-icons/csv_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
-                        alt="CSV"
-                        class="md-function-item-icon"
-                    />
-                    <span class="md-function-item-text">导出为CSV</span>
-                  </div>
-
                   <div class="md-function-item" @click="exportToHTML">
                     <img
                         src="@material-icons/html_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
@@ -142,6 +133,15 @@
                         class="md-function-item-icon"
                     />
                     <span class="md-function-item-text">导出为Markdown</span>
+                  </div>
+
+                  <div class="md-function-item" @click="exportToCSV">
+                    <img
+                        src="@material-icons/csv_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
+                        alt="CSV"
+                        class="md-function-item-icon"
+                    />
+                    <span class="md-function-item-text">导出为CSV(Unicode)</span>
                   </div>
 
                   <div class="md-function-item" @click="exportToText">
@@ -310,6 +310,12 @@
             <div class="md-status-content">
               <div class="md-status-icon" :class="statusIconClass">
                 <img
+                    v-if="currentStatus === 'processing'"
+                    src="@material-icons/process_chart_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
+                    :alt="statusMainText"
+                    class="md-status-image"
+                />
+                <img
                     v-if="currentStatus === 'loading'"
                     src="@material-icons/table_view_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
                     :alt="statusMainText"
@@ -349,9 +355,9 @@
               v-for="row in displayData"
               :key="`${row._rowId}-${forceUpdateTrigger}`"
               class="md-data-row"
-              :class="{ 'highlighted': row._highlighted, 'strikethrough': row._strikethrough, 'marking-disabled': isMarkingDisabled }"
-              @dblclick="isMarkingDisabled ? null : toggleHighlight(row)"
-              @contextmenu.prevent="isMarkingDisabled ? null : toggleStrikethrough(row)"
+              :class="{ 'highlighted': row._highlighted, 'strikethrough': row._strikethrough, 'marking-disabled': isMarkingTemporarilyDisabled }"
+              @dblclick="isMarkingTemporarilyDisabled ? null : toggleHighlight(row)"
+              @contextmenu.prevent="isMarkingTemporarilyDisabled ? null : toggleStrikethrough(row)"
               :title="isMarkingDisabled ? '管理员已禁用数据行标记功能' : ''"
               v-show="!shouldShowDataOverlay"
           >
@@ -387,9 +393,7 @@
         <div class="md-table-info">
           <div class="md-status-indicator" :class="statusIndicatorClass"></div>
           <span class="md-status-text">{{ statusText }}</span>
-          <span class="md-data-info">
-            总加载数据: {{ totalCount }}, 当前所处 {{ pageStatusText }} 页
-          </span>
+          <span class="md-data-info">{{ statusDetailText }}</span>
         </div>
 
         <div class="md-footer-center-controls">
@@ -436,7 +440,7 @@
         <div class="md-page-controls">
           <button
               class="md-page-button md-button-hover-unified"
-              :disabled="currentPage <= 1"
+              :disabled="currentPage <= 1 || isGotoTemporarilyDisabled"
               @click="goToPage(1)"
               :title="currentPage <= 1 ? '跳转至最初页: 不可用' : '跳转至最初页'"
           >
@@ -444,12 +448,13 @@
                 src="@material-icons/first_page_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
                 alt="首页"
                 class="md-page-icon"
+                :class="{ 'disabled-icon': isGotoTemporarilyDisabled }"
             />
           </button>
 
           <button
               class="md-page-button md-button-hover-unified"
-              :disabled="currentPage <= 1"
+              :disabled="currentPage <= 1 || isGotoTemporarilyDisabled"
               @click="goToPage(currentPage - 1)"
               :title="currentPage <= 1 ? '跳转至上一页: 不可用' : '跳转至上一页'"
           >
@@ -457,6 +462,7 @@
                 src="@material-icons/chevron_backward_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
                 alt="上一页"
                 class="md-page-icon"
+                :class="{ 'disabled-icon': isGotoTemporarilyDisabled }"
             />
           </button>
 
@@ -466,13 +472,13 @@
                 class="md-goto-input"
                 :class="{
                   'md-goto-input-wide': gotoInputWidth > 100,
-                  'disabled': shouldShowDataOverlay
+                  'disabled': shouldShowDataOverlay || isGotoTemporarilyDisabled
                 }"
                 :style="{ width: gotoInputWidth + 'px' }"
                 type="text"
                 inputmode="numeric"
                 :placeholder="gotoPlaceholder"
-                :disabled="shouldShowDataOverlay"
+                :disabled="shouldShowDataOverlay || isGotoTemporarilyDisabled"
                 :title="shouldShowDataOverlay ? '数据加载中' : '输入页码进行跳转'"
                 @focus="onGotoInputFocus"
                 @blur="onGotoInputBlur"
@@ -480,10 +486,10 @@
                 @keydown="handleGotoInputKeydown"
                 @keyup.enter="handleGotoPageEnter"
             />
-            <div class="md-goto-spinner" :class="{ 'disabled': shouldShowDataOverlay }">
+            <div class="md-goto-spinner" :class="{ 'disabled': shouldShowDataOverlay || isGotoTemporarilyDisabled }">
               <button
                   class="md-spinner-button md-spinner-up"
-                  :disabled="shouldShowDataOverlay"
+                  :disabled="shouldShowDataOverlay || isGotoTemporarilyDisabled"
                   @click="handleSpinnerClick(1)"
                   :title="shouldShowDataOverlay ? '数据加载中' : '增加页码'"
                   tabindex="-1"
@@ -492,12 +498,12 @@
                     src="@material-icons/keyboard_arrow_up_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
                     alt="上"
                     class="md-spinner-icon"
-                    :class="{ 'disabled-icon': shouldShowDataOverlay }"
+                    :class="{ 'disabled-icon': shouldShowDataOverlay || isGotoTemporarilyDisabled }"
                 />
               </button>
               <button
                   class="md-spinner-button md-spinner-down"
-                  :disabled="shouldShowDataOverlay"
+                  :disabled="shouldShowDataOverlay || isGotoTemporarilyDisabled"
                   @click="handleSpinnerClick(-1)"
                   :title="shouldShowDataOverlay ? '数据加载中' : '减少页码'"
                   tabindex="-1"
@@ -506,7 +512,7 @@
                     src="@material-icons/keyboard_arrow_down_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
                     alt="下"
                     class="md-spinner-icon"
-                    :class="{ 'disabled-icon': shouldShowDataOverlay }"
+                    :class="{ 'disabled-icon': shouldShowDataOverlay || isGotoTemporarilyDisabled }"
                 />
               </button>
             </div>
@@ -514,9 +520,9 @@
 
           <button
               class="md-goto-button"
-              :class="{ 'disabled': shouldShowDataOverlay || totalPages <= 1 }"
+              :class="{ 'disabled': shouldShowDataOverlay || totalPages <= 1 || isGotoTemporarilyDisabled }"
               @click="handleGotoPage"
-              :disabled="shouldShowDataOverlay || totalPages <= 1"
+              :disabled="shouldShowDataOverlay || totalPages <= 1 || isGotoTemporarilyDisabled"
               :title="shouldShowDataOverlay ? '数据加载中' : (totalPages <= 1 ? '只有一页，无需跳转' : 'GOTO跳转')"
           >
             <span class="md-goto-text">跳转</span>
@@ -524,13 +530,13 @@
                 src="@material-icons/go_to_line_100dp_FFFFFF_FILL0_wght400_GRAD0_opsz48.png?inline"
                 alt="跳转"
                 class="md-goto-icon"
-                :class="{ 'disabled-icon': shouldShowDataOverlay || totalPages <= 1 }"
+                :class="{ 'disabled-icon': shouldShowDataOverlay || totalPages <= 1 || isGotoTemporarilyDisabled }"
             />
           </button>
 
           <button
               class="md-page-button md-button-hover-unified"
-              :disabled="currentPage >= totalPages"
+              :disabled="currentPage >= totalPages || isGotoTemporarilyDisabled"
               @click="goToPage(currentPage + 1)"
               :title="currentPage >= totalPages ? '跳转至下一页: 不可用' : '跳转至下一页'"
           >
@@ -538,12 +544,13 @@
                 src="@material-icons/chevron_forward_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
                 alt="下一页"
                 class="md-page-icon"
+                :class="{ 'disabled-icon': isGotoTemporarilyDisabled }"
             />
           </button>
 
           <button
               class="md-page-button md-button-hover-unified"
-              :disabled="currentPage >= totalPages"
+              :disabled="currentPage >= totalPages || isGotoTemporarilyDisabled"
               @click="goToPage(totalPages)"
               :title="currentPage >= totalPages ? '跳转至最终页: 不可用' : '跳转至最终页'"
           >
@@ -551,6 +558,7 @@
                 src="@material-icons/last_page_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
                 alt="末页"
                 class="md-page-icon"
+                :class="{ 'disabled-icon': isGotoTemporarilyDisabled }"
             />
           </button>
 
@@ -569,7 +577,6 @@
         </div>
       </div>
 
-      <!-- 窄屏状态覆盖层 -->
       <div v-if="currentStatus === 'narrow'" class="md-status-overlay">
         <div class="md-status-content">
           <div class="md-status-icon">
@@ -586,7 +593,6 @@
     </div>
   </div>
 
-  <!-- 工具提示组件 -->
   <div
       v-if="tooltipVisible"
       class="md-tooltip"
@@ -624,9 +630,10 @@
       <i><strong>使用指引:</strong></i><br/>
       • 双击数据行进行高亮标记(再次双击移除)<br/>
       • 右键数据行添加删除线(再次右键移除)<br/>
+      • 导出较多的数据可能需要较长的时间,耐心等待.实现于当前浏览器的JavaScript中,速度和当前设备的性能强相关<br/>
       • 标记信息会保存在本机上,下次打开网页时继续保留;但要保证标记持久化,使用导出所有标记数据的功能<br/>
       • 在GOTO跳转输入框输入跳转页后可以使用回车快捷键执行跳转.使用前确保页面`key.enter`事件没有被覆盖<br/>
-      • 导出功能在前端的TypeScript中实现,受浏览器引擎约束:大数据量表格可能无法导出<br/>
+      • 导出功能在前端的TypeScript中实现,受浏览器引擎约束:过大数据量表格可能无法导出<br/>
       • 表高限制: 5-75行/页<br/>
       • 表页限制: 9999页.当页数溢出时,尝试修改表高.如果表高最大还无法显示,联系系统管理员<br/>
       • 过窄显示约束: 页面宽度小于max(720px,字段数*160px)*倍率时激活.尝试调整页面宽度,或缩放.如果确保在需求宽度下可正常显示,联系系统管理员修改倍率<br/>
@@ -696,13 +703,16 @@ const isMouseOverExportPopup = ref<boolean>(false)
 const markHoverTimer = ref<number | null>(null)
 const exportHoverTimer = ref<number | null>(null)
 
+const isProcessing = ref<boolean>(false)
+const processingOperation = ref<string>('')
+
 const simpleHash = (str: string): string => {
   let hash = 0
   if (str.length === 0) return hash.toString()
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i)
     hash = ((hash << 5) - hash) + char
-    hash = hash & hash // 转换为32位整数
+    hash = hash & hash
   }
   return Math.abs(hash).toString(36)
 }
@@ -807,6 +817,16 @@ const hideDisabledTooltip = (): void => {
   disabledTooltipVisible.value = false
   disabledTooltipContent.value = ''
 }
+
+const isMarkingTemporarilyDisabled = computed<boolean>(() =>
+    isMarkingDisabled.value || isProcessing.value
+)
+const isOutputTemporarilyDisabled = computed<boolean>(() =>
+    isOutputDisabled.value || isProcessing.value
+)
+const isGotoTemporarilyDisabled = computed<boolean>(() =>
+    isProcessing.value
+)
 
 const gotoInputWidth = computed<number>(() => {
   const inputValue = gotoPageInput.value
@@ -968,11 +988,13 @@ const totalPages = computed<number>(() => {
 })
 
 const statusIconClass = computed<string>(() => {
-  return currentStatus.value === 'loading' ? 'breathing' : ''
+  return (currentStatus.value === 'loading' || currentStatus.value === 'processing') ? 'breathing' : ''
 })
 
 const statusIndicatorClass = computed<string>(() => {
   switch (currentStatus.value) {
+    case 'processing':
+      return 'breathing-green'
     case 'loading':
       return 'breathing-green'
     case 'error':
@@ -988,6 +1010,8 @@ const statusIndicatorClass = computed<string>(() => {
 
 const statusText = computed<string>(() => {
   switch (currentStatus.value) {
+    case 'processing':
+      return '操作'
     case 'loading':
       return '加载'
     case 'error':
@@ -1001,12 +1025,21 @@ const statusText = computed<string>(() => {
   }
 })
 
+const statusDetailText = computed<string>(() => {
+  if (currentStatus.value === 'processing') {
+    return `正在执行操作 ${processingOperation.value}`
+  }
+  return `总加载数据: ${totalCount.value}, 当前所处 ${pageStatusText.value} 页`
+})
+
 const shouldShowDataOverlay = computed<boolean>(() => {
-  return ['loading', 'empty', 'error', 'noheader', 'pagelimit'].includes(currentStatus.value)
+  return ['loading', 'empty', 'error', 'noheader', 'pagelimit', 'processing'].includes(currentStatus.value)
 })
 
 const statusMainText = computed<string>(() => {
   switch (currentStatus.value) {
+    case 'processing':
+      return '正在执行对应操作'
     case 'narrow':
       return '前端宽度过窄'
     case 'loading':
@@ -1026,6 +1059,8 @@ const statusMainText = computed<string>(() => {
 
 const statusSubText = computed<string>(() => {
   switch (currentStatus.value) {
+    case 'processing':
+      return '等待页面执行完成<br/>执行代码于浏览器的JavaScript中<br/>速度和当前设备性能强相关<br/>耐心等待,或修改筛选约束减少数据量<br/>或更换浏览器,或升级硬件配置'
     case 'narrow':
       const ratio = config.value.minWidthRatio || 1.0
       const minWidth = parseInt(calculatedMinWidth.value)
@@ -1131,7 +1166,6 @@ const getStepDisplay = (step: number, index: number): string => {
   return String(step)
 }
 
-// 工具函数
 const generateFileName = (type: string): string => {
   const tableName = displayTableName.value.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')
   const now = new Date()
@@ -1204,74 +1238,81 @@ const clearAllMarkings = (): void => {
 }
 
 const exportMarkingData = async (): Promise<void> => {
-  const highlightedData: any[] = []
-  const strikethroughData: any[] = []
+  isProcessing.value = true
+  processingOperation.value = '导出标记数据'
+  currentStatus.value = 'processing'
 
-  const currentData = displayData.value
+  try {
+    isMarkMenuVisible.value = false
 
-  currentData.forEach((row) => {
-    const cleanRowData: any = {}
+    const highlightedData: any[] = []
+    const strikethroughData: any[] = []
 
-    displayFields.value.forEach((field) => {
-      cleanRowData[field.title] = row[field.key] || ''
-    })
+    const currentData = displayData.value
 
-    if (row._highlighted) {
-      highlightedData.push(cleanRowData)
-    }
+    currentData.forEach((row) => {
+      const cleanRowData: any = {}
 
-    if (row._strikethrough) {
-      strikethroughData.push(cleanRowData)
-    }
-  })
+      displayFields.value.forEach((field) => {
+        cleanRowData[field.title] = row[field.key] || ''
+      })
 
-  const fullData = await getFullTableData()
-  if (fullData.length > 0) {
-    highlightedData.length = 0
-    strikethroughData.length = 0
+      if (row._highlighted) {
+        highlightedData.push(cleanRowData)
+      }
 
-    fullData.forEach((row, index) => {
-      const possibleIds = [
-        generateRowId(row, index),
-        generateRowId(row, index % tableHeight.value),
-        `id_${row.id}`,
-        `uuid_${row.uuid}`,
-        `key_${row.key}`
-      ].filter(Boolean)
-
-      for (const rowId of possibleIds) {
-        const marking = markingsStorage.value.get(rowId)
-        if (marking) {
-          const cleanRowData: any = {}
-
-          if (Array.isArray(row)) {
-            displayFields.value.forEach((field, fieldIndex) => {
-              cleanRowData[field.title] = row[fieldIndex] || ''
-            })
-          } else {
-            const values = Object.values(row)
-            displayFields.value.forEach((field, fieldIndex) => {
-              cleanRowData[field.title] = values[fieldIndex] || row[field.key] || ''
-            })
-          }
-
-          if (marking.highlighted) {
-            highlightedData.push(cleanRowData)
-          }
-
-          if (marking.strikethrough) {
-            strikethroughData.push(cleanRowData)
-          }
-          break
-        }
+      if (row._strikethrough) {
+        strikethroughData.push(cleanRowData)
       }
     })
-  }
 
-  const meta = await generateExportMeta()
-  const timestamp = new Date().toISOString()
+    const fullData = await getFullTableData()
+    if (fullData.length > 0) {
+      highlightedData.length = 0
+      strikethroughData.length = 0
 
-  const content = `"""
+      fullData.forEach((row, index) => {
+        const possibleIds = [
+          generateRowId(row, index),
+          generateRowId(row, index % tableHeight.value),
+          `id_${row.id}`,
+          `uuid_${row.uuid}`,
+          `key_${row.key}`
+        ].filter(Boolean)
+
+        for (const rowId of possibleIds) {
+          const marking = markingsStorage.value.get(rowId)
+          if (marking) {
+            const cleanRowData: any = {}
+
+            if (Array.isArray(row)) {
+              displayFields.value.forEach((field, fieldIndex) => {
+                cleanRowData[field.title] = row[fieldIndex] || ''
+              })
+            } else {
+              const values = Object.values(row)
+              displayFields.value.forEach((field, fieldIndex) => {
+                cleanRowData[field.title] = values[fieldIndex] || row[field.key] || ''
+              })
+            }
+
+            if (marking.highlighted) {
+              highlightedData.push(cleanRowData)
+            }
+
+            if (marking.strikethrough) {
+              strikethroughData.push(cleanRowData)
+            }
+            break
+          }
+        }
+      })
+    }
+
+    const meta = await generateExportMeta()
+    const timestamp = new Date().toISOString()
+
+    const content = `"""
 标记数据管理模块
 
 Vue标准表格组件的标记数据导出模块，提供高亮和删除线标记数据的面向对象访问。
@@ -1595,8 +1636,12 @@ if __name__ == '__main__':
     main()
 `
 
-  downloadFile(content, `${generateFileName('MarkingData')}.py`)
-  isMarkMenuVisible.value = false
+    downloadFile(content, `${generateFileName('MarkingData')}.py`)
+  } finally {
+    isProcessing.value = false
+    processingOperation.value = ''
+    checkTableStatus()
+  }
 }
 
 const getFullTableData = async (): Promise<any[]> => {
@@ -1605,25 +1650,45 @@ const getFullTableData = async (): Promise<any[]> => {
   }
 
   try {
-    const response = await window.loadTableData({
-      page: 1,
-      pageSize: totalCount.value || 999999
-    })
+    const allData: any[] = []
+    let currentPage = 1
+    const batchSize = 1000
+    let hasMore = true
 
-    if (response.success) {
-      return response.data
+    while (hasMore) {
+      const response = await window.loadTableData({
+        page: currentPage,
+        pageSize: batchSize
+      })
+
+      if (response.success && response.data.length > 0) {
+        allData.push(...response.data)
+
+        if (response.data.length < batchSize || allData.length >= response.totalCount) {
+          hasMore = false
+        } else {
+          currentPage++
+        }
+      } else {
+        hasMore = false
+      }
+
+      if (currentPage > 1000) {
+        console.warn('导出数据页数超过安全限制，停止获取')
+        break
+      }
     }
+
+    return allData
+
   } catch (error) {
     currentStatus.value = 'error'
     tableData.value = []
     totalCount.value = 0
     throw error
   }
-
-  return tableData.value
 }
 
-// 生成导出元信息
 const generateExportMeta = async (): Promise<{ exportTime: string, hash: string, tableName: string, totalCount: number }> => {
   const now = new Date()
   const exportTime = now.toLocaleString('zh-CN', {
@@ -1643,56 +1708,71 @@ const generateExportMeta = async (): Promise<{ exportTime: string, hash: string,
   }
 }
 
-// 导出功能
 const exportToCSV = async (): Promise<void> => {
-  const fullData = await getFullTableData()
-  if (!fullData.length) {
-    downloadFile('导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun', `${generateFileName('CSV')}.csv`)
-    isExportMenuVisible.value = false
-    return
-  }
+  isProcessing.value = true
+  processingOperation.value = '导出表格为CSV'
+  currentStatus.value = 'processing'
 
-  const headers = displayFields.value.map(field => field.title).join(',')
-  const rows = fullData.map(row => {
-    if (Array.isArray(row)) {
-      return displayFields.value.map((_field, index) => {
-        const value = row[index] || ''
-        return `"${String(value).replace(/"/g, '""')}"`
-      }).join(',')
-    } else {
-      const values = Object.values(row)
-      return displayFields.value.map((_field, index) => {
-        const value = values[index] || ''
-        return `"${String(value).replace(/"/g, '""')}"`
-      }).join(',')
+  try {
+    isExportMenuVisible.value = false
+
+    const fullData = await getFullTableData()
+    if (!fullData.length) {
+      downloadFile('导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun', `${generateFileName('CSV')}.csv`)
+      return
     }
-  }).join('\n')
-  const content = headers + '\n' + rows
-  downloadFile(content, `${generateFileName('CSV')}.csv`)
-  isExportMenuVisible.value = false
+
+    const headers = displayFields.value.map(field => field.title).join(',')
+    const rows = fullData.map(row => {
+      if (Array.isArray(row)) {
+        return displayFields.value.map((_field, index) => {
+          const value = row[index] || ''
+          return `"${String(value).replace(/"/g, '""')}"`
+        }).join(',')
+      } else {
+        const values = Object.values(row)
+        return displayFields.value.map((_field, index) => {
+          const value = values[index] || ''
+          return `"${String(value).replace(/"/g, '""')}"`
+        }).join(',')
+      }
+    }).join('\n')
+    const content = headers + '\n' + rows
+    downloadFile(content, `${generateFileName('CSV')}.csv`)
+  } finally {
+    isProcessing.value = false
+    processingOperation.value = ''
+    checkTableStatus()
+  }
 }
 
 const exportToMarkdown = async (): Promise<void> => {
-  const fullData = await getFullTableData()
-  if (!fullData.length) {
-    downloadFile('导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun', `${generateFileName('Markdown')}.md`)
+  isProcessing.value = true
+  processingOperation.value = '导出表格为Markdown'
+  currentStatus.value = 'processing'
+
+  try {
     isExportMenuVisible.value = false
-    return
-  }
 
-  const meta = await generateExportMeta()
-  const headers = '| ' + displayFields.value.map(field => field.title).join(' | ') + ' |'
-  const separator = '|' + displayFields.value.map(() => '---').join('|') + '|'
-  const rows = fullData.map(row => {
-    if (Array.isArray(row)) {
-      return '| ' + displayFields.value.map((_field, index) => row[index] || '').join(' | ') + ' |'
-    } else {
-      const values = Object.values(row)
-      return '| ' + displayFields.value.map((_field, index) => values[index] || '').join(' | ') + ' |'
+    const fullData = await getFullTableData()
+    if (!fullData.length) {
+      downloadFile('导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun', `${generateFileName('Markdown')}.md`)
+      return
     }
-  }).join('\n')
 
-  const content = `# ${meta.tableName}
+    const meta = await generateExportMeta()
+    const headers = '| ' + displayFields.value.map(field => field.title).join(' | ') + ' |'
+    const separator = '|' + displayFields.value.map(() => '---').join('|') + '|'
+    const rows = fullData.map(row => {
+      if (Array.isArray(row)) {
+        return '| ' + displayFields.value.map((_field, index) => row[index] || '').join(' | ') + ' |'
+      } else {
+        const values = Object.values(row)
+        return '| ' + displayFields.value.map((_field, index) => values[index] || '').join(' | ') + ' |'
+      }
+    }).join('\n')
+
+    const content = `# ${meta.tableName}
 
 ## 导出信息
 - **导出时间**: ${meta.exportTime}
@@ -1709,879 +1789,907 @@ ${rows}
 ---
 *由 Vue标准表格组件@WaterRun 导出 | 组件自动生成的HTML `
 
-  downloadFile(content, `${generateFileName('Markdown')}.md`)
-  isExportMenuVisible.value = false
+    downloadFile(content, `${generateFileName('Markdown')}.md`)
+  } finally {
+    isProcessing.value = false
+    processingOperation.value = ''
+    checkTableStatus()
+  }
 }
 
 const exportToJSON = async (): Promise<void> => {
-  const fullData = await getFullTableData()
-  if (!fullData.length) {
-    downloadFile('{"error": "导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun"}', `${generateFileName('JSON')}.json`)
+  isProcessing.value = true
+  processingOperation.value = '导出表格为JSON'
+  currentStatus.value = 'processing'
+
+  try {
     isExportMenuVisible.value = false
-    return
-  }
 
-  const meta = await generateExportMeta()
-  const exportData = {
-    meta: {
-      tableName: meta.tableName,
-      exportTime: meta.exportTime,
-      hash: meta.hash,
-      totalCount: meta.totalCount,
-      fieldsCount: displayFields.value.length,
-      exportedBy: "Vue标准表格组件@WaterRun"
-    },
-    fields: displayFields.value.map(field => ({
-      key: field.key,
-      title: field.title
-    })),
-    data: fullData
-  }
+    const fullData = await getFullTableData()
+    if (!fullData.length) {
+      downloadFile('{"error": "导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun"}', `${generateFileName('JSON')}.json`)
+      return
+    }
 
-  const content = JSON.stringify(exportData, null, 2)
-  downloadFile(content, `${generateFileName('JSON')}.json`)
-  isExportMenuVisible.value = false
+    const meta = await generateExportMeta()
+    const exportData = {
+      meta: {
+        tableName: meta.tableName,
+        exportTime: meta.exportTime,
+        hash: meta.hash,
+        totalCount: meta.totalCount,
+        fieldsCount: displayFields.value.length,
+        exportedBy: "Vue标准表格组件@WaterRun"
+      },
+      fields: displayFields.value.map(field => ({
+        key: field.key,
+        title: field.title
+      })),
+      data: fullData
+    }
+
+    const content = JSON.stringify(exportData, null, 2)
+    downloadFile(content, `${generateFileName('JSON')}.json`)
+  } finally {
+    isProcessing.value = false
+    processingOperation.value = ''
+    checkTableStatus()
+  }
 }
 
 const exportToHTML = async (): Promise<void> => {
-  const fullData = await getFullTableData()
-  const meta = await generateExportMeta()
-  if (!fullData.length) {
-    downloadFile(`<html><body><h1>导出失败：数据获取异常</h1><p>这最可能是由于数据量过大受浏览器JS引擎限制导致的，或者数据可能为空。使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。<br/>导出的基本信息：${meta.tableName}，${meta.exportTime}，${meta.hash}<br/>Vue 标准表格组件@WaterRun</p></body></html>`, `${generateFileName('HTML')}.html`)
+  isProcessing.value = true
+  processingOperation.value = '导出表格为HTML'
+  currentStatus.value = 'processing'
+
+  try {
     isExportMenuVisible.value = false
-    return
-  }
 
-  // 构建表头
-  const headers = displayFields.value.map((field, index) =>
-      `<th onclick="sortTable(${index})" style="cursor: pointer; user-select: none;" data-field="${field.key}">
-      <div class="th-content">
-        <span class="th-title">${field.title}</span>
-        <span class="sort-indicator">⇅</span>
-      </div>
-    </th>`
-  ).join('')
-
-  const rows = fullData.map((row, rowIndex) => {
-    let cellsHtml = ''
-    if (Array.isArray(row)) {
-      cellsHtml = displayFields.value.map((_field, index) =>
-          `<td><div class="cell-content">${row[index] || ''}</div></td>`
-      ).join('')
-    } else {
-      const values = Object.values(row)
-      cellsHtml = displayFields.value.map((_field, index) =>
-          `<td><div class="cell-content">${values[index] || ''}</div></td>`
-      ).join('')
-    }
-    return `<tr data-row="${rowIndex}">${cellsHtml}</tr>`
-  }).join('\n')
-
-  // 构建字段选项
-  const fieldOptions = displayFields.value.map((field, index) =>
-      `<option value="${index}">${field.title}</option>`
-  ).join('')
-
-  const styles = `
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    :root {
-      --bg-primary: #ffffff;
-      --bg-secondary: #f5f5f5;
-      --bg-tertiary: #eeeeee;
-      --bg-accent: #e1e1e1;
-      --border-primary: #d1d1d1;
-      --border-secondary: #e5e5e5;
-      --text-primary: #2d2d2d;
-      --text-secondary: #525252;
-      --text-muted: #737373;
-      --text-disabled: #a3a3a3;
-      --accent-color: #404040;
-      --accent-hover: #2d2d2d;
-      --danger-color: #a85a5a;
-      --danger-hover: #8b4848;
-      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-      --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06);
-    }
-
-    body {
-      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', 'Consolas', monospace;
-      font-size: 12px;
-      line-height: 1.4;
-      color: var(--text-primary);
-      background-color: var(--bg-secondary);
-      padding: 16px;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-
-    .container {
-      max-width: 1600px;
-      margin: 0 auto;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-primary);
-      box-shadow: var(--shadow-md);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-
-    .header {
-      background: linear-gradient(180deg, #f8f8f8 0%, #efefef 100%);
-      border-bottom: 1px solid var(--border-primary);
-      padding: 14px 18px;
-    }
-
-    .header-title {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 10px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
-      letter-spacing: -0.2px;
-    }
-
-    .meta-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 10px;
-      font-size: 11px;
-    }
-
-    .meta-item {
-      background: rgba(255, 255, 255, 0.7);
-      border: 1px solid #ddd;
-      padding: 5px 8px;
-      border-radius: 2px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .meta-label {
-      color: var(--text-muted);
-      font-weight: 500;
-      min-width: 40px;
-    }
-
-    .meta-value {
-      color: var(--text-primary);
-      font-weight: 600;
-      font-family: monospace;
-    }
-
-    .toolbar {
-      padding: 10px 18px;
-      background: linear-gradient(180deg, #fafafa 0%, #f1f1f1 100%);
-      border-bottom: 1px solid var(--border-secondary);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      min-height: 44px;
-    }
-
-    .status-info {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      font-size: 11px;
-      color: var(--text-secondary);
-    }
-
-    .record-count {
-      font-family: monospace;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .record-number {
-      color: var(--text-primary);
-      font-weight: 700;
-      background: var(--bg-tertiary);
-      padding: 2px 6px;
-      border-radius: 2px;
-      border: 1px solid var(--border-secondary);
-    }
-
-    .filter-toggle {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      padding: 6px 10px;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-primary);
-      border-radius: 2px;
-      font-size: 11px;
-      color: var(--text-primary);
-      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-      user-select: none;
-      font-weight: 500;
-    }
-
-    .filter-toggle:hover {
-      background: var(--bg-tertiary);
-      border-color: var(--accent-color);
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-sm);
-    }
-
-    .filter-toggle.active {
-      background: var(--accent-color);
-      color: var(--bg-primary);
-      border-color: var(--accent-color);
-    }
-
-    .filter-indicator {
-      font-size: 9px;
-      transition: transform 0.2s ease;
-    }
-
-    .filter-toggle.active .filter-indicator {
-      transform: rotate(90deg);
-    }
-
-    .filter-badge {
-      background: var(--text-muted);
-      color: var(--bg-primary);
-      border-radius: 10px;
-      padding: 2px 6px;
-      font-size: 9px;
-      min-width: 18px;
-      text-align: center;
-      font-weight: 600;
-      line-height: 1.2;
-    }
-
-    .filter-toggle.active .filter-badge {
-      background: var(--bg-primary);
-      color: var(--accent-color);
-    }
-
-    .filter-panel {
-      background: linear-gradient(180deg, #fcfcfc 0%, #f7f7f7 100%);
-      border-bottom: 1px solid var(--border-secondary);
-      padding: 16px 18px;
-      display: none;
-      border-top: 1px solid var(--border-secondary);
-    }
-
-    .filter-panel.expanded {
-      display: block;
-      animation: slideDown 0.2s ease-out;
-    }
-
-    @keyframes slideDown {
-      from { opacity: 0; transform: translateY(-8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .filter-form {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      margin-bottom: 12px;
-      flex-wrap: wrap;
-    }
-
-    .filter-form-label {
-      font-size: 11px;
-      color: var(--text-secondary);
-      font-weight: 500;
-      min-width: 32px;
-    }
-
-    .filter-form select,
-    .filter-form input {
-      padding: 5px 8px;
-      border: 1px solid var(--border-primary);
-      background: var(--bg-primary);
-      font-size: 11px;
-      font-family: monospace;
-      color: var(--text-primary);
-      border-radius: 2px;
-      transition: all 0.15s ease;
-    }
-
-    .filter-form select {
-      min-width: 120px;
-      cursor: pointer;
-    }
-
-    .filter-form input {
-      min-width: 180px;
-      flex: 1;
-      max-width: 240px;
-    }
-
-    .filter-form select:focus,
-    .filter-form input:focus {
-      outline: none;
-      border-color: var(--accent-color);
-      box-shadow: 0 0 0 2px rgba(64, 64, 64, 0.1);
-    }
-
-    .btn {
-      padding: 5px 12px;
-      border: 1px solid var(--border-primary);
-      background: var(--bg-primary);
-      cursor: pointer;
-      font-size: 11px;
-      color: var(--text-primary);
-      border-radius: 2px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-      font-weight: 500;
-      user-select: none;
-    }
-
-    .btn:hover {
-      background: var(--bg-tertiary);
-      border-color: var(--accent-color);
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-sm);
-    }
-
-    .btn:active {
-      transform: translateY(0);
-      box-shadow: none;
-    }
-
-    .btn-primary {
-      background: var(--accent-color);
-      border-color: var(--accent-color);
-      color: var(--bg-primary);
-    }
-
-    .btn-primary:hover {
-      background: var(--accent-hover);
-      border-color: var(--accent-hover);
-      transform: translateY(-1px);
-    }
-
-    .btn-danger {
-      color: var(--danger-color);
-      border-color: transparent;
-    }
-
-    .btn-danger:hover {
-      background: rgba(168, 90, 90, 0.1);
-      border-color: var(--danger-color);
-      color: var(--danger-hover);
-    }
-
-    .filter-list {
-      min-height: 24px;
-      max-height: 120px;
-      overflow-y: auto;
-    }
-
-    .filter-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 6px 10px;
-      margin-bottom: 4px;
-      background: var(--bg-primary);
-      border: 1px solid var(--border-secondary);
-      border-radius: 2px;
-      font-size: 11px;
-      transition: all 0.15s ease;
-    }
-
-    .filter-item:last-child {
-      margin-bottom: 0;
-    }
-
-    .filter-item:hover {
-      background: var(--bg-tertiary);
-      border-color: var(--border-primary);
-    }
-
-    .filter-text {
-      font-family: monospace;
-      color: var(--text-primary);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .filter-field {
-      color: var(--text-secondary);
-      font-weight: 500;
-    }
-
-    .filter-pattern {
-      color: var(--accent-color);
-      font-weight: 600;
-      background: var(--bg-tertiary);
-      padding: 1px 4px;
-      border-radius: 2px;
-    }
-
-    .filter-controls {
-      margin-top: 12px;
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-    }
-
-    .empty-filters {
-      color: var(--text-disabled);
-      font-style: italic;
-      font-size: 11px;
-      text-align: center;
-      padding: 12px;
-    }
-
-    .table-container {
-      background: var(--bg-primary);
-      position: relative;
-      height: calc(100vh - 280px);
-      min-height: 400px;
-      overflow: auto;
-      border-bottom: 1px solid var(--border-secondary);
-    }
-
-    .table-container::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-
-    .table-container::-webkit-scrollbar-track {
-      background: var(--bg-secondary);
-    }
-
-    .table-container::-webkit-scrollbar-thumb {
-      background: var(--border-primary);
-      border-radius: 4px;
-    }
-
-    .table-container::-webkit-scrollbar-thumb:hover {
-      background: var(--text-muted);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      font-variant-numeric: tabular-nums;
-    }
-
-    thead {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    }
-
-    th {
-      background: linear-gradient(180deg, #f0f0f0 0%, #e8e8e8 100%);
-      color: var(--text-primary);
-      text-align: left;
-      font-weight: 600;
-      font-size: 11px;
-      border-right: 1px solid var(--border-secondary);
-      border-bottom: 1px solid var(--border-primary);
-      user-select: none;
-      transition: all 0.15s ease;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
-      position: relative;
-    }
-
-    th:last-child {
-      border-right: none;
-    }
-
-    th:hover {
-      background: linear-gradient(180deg, #e8e8e8 0%, #ddd 100%);
-    }
-
-    .th-content {
-      padding: 8px 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 6px;
-    }
-
-    .th-title {
-      flex: 1;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .sort-indicator {
-      color: var(--text-muted);
-      font-size: 10px;
-      opacity: 0.6;
-      transition: all 0.15s ease;
-    }
-
-    th:hover .sort-indicator {
-      opacity: 1;
-      color: var(--text-secondary);
-    }
-
-    td {
-      border-right: 1px solid var(--border-secondary);
-      border-bottom: 1px solid var(--border-secondary);
-      font-size: 11px;
-      vertical-align: top;
-      font-family: monospace;
-      color: var(--text-primary);
-      line-height: 1.4;
-      background: var(--bg-primary);
-    }
-
-    td:last-child {
-      border-right: none;
-    }
-
-    .cell-content {
-      padding: 6px 10px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 200px;
-    }
-
-    tbody tr:hover {
-      background: var(--bg-secondary);
-    }
-
-    tbody tr:hover td {
-      background: var(--bg-secondary);
-    }
-
-    tbody tr:nth-child(even) td {
-      background: #fafafa;
-    }
-
-    tbody tr:nth-child(even):hover td {
-      background: var(--bg-secondary);
-    }
-
-    .footer {
-      padding: 10px 18px;
-      background: linear-gradient(180deg, #f8f8f8 0%, #efefef 100%);
-      color: var(--text-muted);
-      font-size: 10px;
-      text-align: center;
-      font-family: monospace;
-      border-top: 1px solid var(--border-primary);
-    }
-
-    .footer-content {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-
-    .footer-item {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .footer-label {
-      color: var(--text-disabled);
-    }
-
-    .footer-value {
-      color: var(--text-secondary);
-      font-weight: 500;
-    }
-
-    @media (max-width: 1200px) {
-      body { padding: 8px; }
-      .container { border-radius: 0; }
-      .toolbar { flex-direction: column; align-items: stretch; gap: 12px; }
-      .status-info { justify-content: space-between; }
-      .filter-form { flex-direction: column; align-items: stretch; gap: 8px; }
-      .filter-item { flex-direction: column; align-items: stretch; gap: 6px; }
-      .th-content { padding: 6px 8px; }
-      .cell-content { padding: 4px 8px; max-width: 150px; }
-      .footer-content { flex-direction: column; gap: 4px; }
-    }`
-
-  const scriptCode = `
-    let sortDirection = [];
-    let originalData = Array.from(document.querySelectorAll('#tableBody tr'));
-    let activeFilters = [];
-    let filterIdCounter = 0;
-    let filterPanelExpanded = false;
-
-    const fieldNames = [${displayFields.value.map(field => `'${field.title}'`).join(', ')}];
-
-    function sortTable(columnIndex) {
-      const table = document.getElementById('tableBody');
-      const rows = Array.from(table.querySelectorAll('tr'));
-
-      if (!sortDirection[columnIndex]) sortDirection[columnIndex] = 'asc';
-      else sortDirection[columnIndex] = sortDirection[columnIndex] === 'asc' ? 'desc' : 'asc';
-
-      rows.sort((a, b) => {
-        const aText = a.cells[columnIndex].querySelector('.cell-content').textContent.trim();
-        const bText = b.cells[columnIndex].querySelector('.cell-content').textContent.trim();
-
-        const aNum = parseFloat(aText);
-        const bNum = parseFloat(bText);
-
-        let comparison = 0;
-        if (!isNaN(aNum) && !isNaN(bNum)) {
-          comparison = aNum - bNum;
-        } else {
-          comparison = aText.localeCompare(bText, 'zh-CN');
-        }
-
-        return sortDirection[columnIndex] === 'asc' ? comparison : -comparison;
-      });
-
-      document.querySelectorAll('.sort-indicator').forEach((indicator, index) => {
-        if (index === columnIndex) {
-          indicator.textContent = sortDirection[columnIndex] === 'asc' ? '↑' : '↓';
-        } else {
-          indicator.textContent = '⇅';
-        }
-      });
-
-      rows.forEach(row => table.appendChild(row));
-    }
-
-    function toggleFilterPanel() {
-      filterPanelExpanded = !filterPanelExpanded;
-      const panel = document.getElementById('filterPanel');
-      const toggle = document.getElementById('filterToggle');
-
-      if (filterPanelExpanded) {
-        panel.classList.add('expanded');
-        toggle.classList.add('active');
+    const fullData = await getFullTableData()
+    const meta = await generateExportMeta()
+    if (!fullData.length) {
+      downloadFile(`<html><body><h1>导出失败：数据获取异常</h1><p>这最可能是由于数据量过大受浏览器JS引擎限制导致的，或者数据可能为空。使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。<br/>导出的基本信息：${meta.tableName}，${meta.exportTime}，${meta.hash}<br/>Vue 标准表格组件@WaterRun</p></body></html>`, `${generateFileName('HTML')}.html`)
+      return
+    }
+
+    const headers = displayFields.value.map((field, index) =>
+        `<th onclick="sortTable(${index})" style="cursor: pointer; user-select: none;" data-field="${field.key}">
+        <div class="th-content">
+          <span class="th-title">${field.title}</span>
+          <span class="sort-indicator">⇅</span>
+        </div>
+      </th>`
+    ).join('')
+
+    const rows = fullData.map((row, rowIndex) => {
+      let cellsHtml = ''
+      if (Array.isArray(row)) {
+        cellsHtml = displayFields.value.map((_field, index) =>
+            `<td><div class="cell-content">${row[index] || ''}</div></td>`
+        ).join('')
       } else {
-        panel.classList.remove('expanded');
-        toggle.classList.remove('active');
+        const values = Object.values(row)
+        cellsHtml = displayFields.value.map((_field, index) =>
+            `<td><div class="cell-content">${values[index] || ''}</div></td>`
+        ).join('')
       }
-    }
+      return `<tr data-row="${rowIndex}">${cellsHtml}</tr>`
+    }).join('\n')
 
-    function addFilter() {
-      const fieldSelect = document.getElementById('filterField');
-      const patternInput = document.getElementById('filterPattern');
+    const fieldOptions = displayFields.value.map((field, index) =>
+        `<option value="${index}">${field.title}</option>`
+    ).join('')
 
-      const fieldIndex = parseInt(fieldSelect.value);
-      const pattern = patternInput.value.trim();
-
-      if (pattern === '') return;
-
-      try {
-        new RegExp(pattern, 'i');
-      } catch (e) {
-        alert('正则表达式语法错误');
-        return;
+    const styles = `
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
       }
 
-      const filter = {
-        id: filterIdCounter++,
-        fieldIndex: fieldIndex,
-        fieldName: fieldNames[fieldIndex],
-        pattern: pattern,
-        regex: new RegExp(pattern, 'i')
-      };
-
-      activeFilters.push(filter);
-      patternInput.value = '';
-
-      updateFilterDisplay();
-      applyFilters();
-    }
-
-    function removeFilter(filterId) {
-      activeFilters = activeFilters.filter(f => f.id !== filterId);
-      updateFilterDisplay();
-      applyFilters();
-    }
-
-    function clearAllFilters() {
-      activeFilters = [];
-      updateFilterDisplay();
-      applyFilters();
-    }
-
-    function updateFilterDisplay() {
-      const filterList = document.getElementById('filterList');
-      const filterBadge = document.getElementById('filterBadge');
-
-      filterBadge.textContent = activeFilters.length;
-
-      if (activeFilters.length === 0) {
-        filterList.innerHTML = '<div class="empty-filters">无激活筛选条件</div>';
-        return;
+      :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f5f5f5;
+        --bg-tertiary: #eeeeee;
+        --bg-accent: #e1e1e1;
+        --border-primary: #d1d1d1;
+        --border-secondary: #e5e5e5;
+        --text-primary: #2d2d2d;
+        --text-secondary: #525252;
+        --text-muted: #737373;
+        --text-disabled: #a3a3a3;
+        --accent-color: #404040;
+        --accent-hover: #2d2d2d;
+        --danger-color: #a85a5a;
+        --danger-hover: #8b4848;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06);
       }
 
-      const filtersHtml = activeFilters.map(filter =>
-        '<div class="filter-item">' +
-          '<div class="filter-text">' +
-            '<span class="filter-field">' + filter.fieldName + '</span>' +
-            '<span class="filter-pattern">/' + filter.pattern + '/i</span>' +
-          '</div>' +
-          '<button class="btn btn-danger" onclick="removeFilter(' + filter.id + ')">移除</button>' +
-        '</div>'
-      ).join('');
+      body {
+        font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', 'Consolas', monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        color: var(--text-primary);
+        background-color: var(--bg-secondary);
+        padding: 16px;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
 
-      filterList.innerHTML = filtersHtml;
-    }
+      .container {
+        max-width: 1600px;
+        margin: 0 auto;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-primary);
+        box-shadow: var(--shadow-md);
+        border-radius: 3px;
+        overflow: hidden;
+      }
 
-    function applyFilters() {
-      let visibleCount = 0;
+      .header {
+        background: linear-gradient(180deg, #f8f8f8 0%, #efefef 100%);
+        border-bottom: 1px solid var(--border-primary);
+        padding: 14px 18px;
+      }
 
-      originalData.forEach(row => {
-        let shouldShow = true;
+      .header-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 10px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+        letter-spacing: -0.2px;
+      }
 
-        for (const filter of activeFilters) {
-          const cellText = row.cells[filter.fieldIndex].querySelector('.cell-content').textContent.trim();
-          if (!filter.regex.test(cellText)) {
-            shouldShow = false;
-            break;
+      .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+        font-size: 11px;
+      }
+
+      .meta-item {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid #ddd;
+        padding: 5px 8px;
+        border-radius: 2px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .meta-label {
+        color: var(--text-muted);
+        font-weight: 500;
+        min-width: 40px;
+      }
+
+      .meta-value {
+        color: var(--text-primary);
+        font-weight: 600;
+        font-family: monospace;
+      }
+
+      .toolbar {
+        padding: 10px 18px;
+        background: linear-gradient(180deg, #fafafa 0%, #f1f1f1 100%);
+        border-bottom: 1px solid var(--border-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 44px;
+      }
+
+      .status-info {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        font-size: 11px;
+        color: var(--text-secondary);
+      }
+
+      .record-count {
+        font-family: monospace;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .record-number {
+        color: var(--text-primary);
+        font-weight: 700;
+        background: var(--bg-tertiary);
+        padding: 2px 6px;
+        border-radius: 2px;
+        border: 1px solid var(--border-secondary);
+      }
+
+      .filter-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        padding: 6px 10px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-primary);
+        border-radius: 2px;
+        font-size: 11px;
+        color: var(--text-primary);
+        transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        user-select: none;
+        font-weight: 500;
+      }
+
+      .filter-toggle:hover {
+        background: var(--bg-tertiary);
+        border-color: var(--accent-color);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .filter-toggle.active {
+        background: var(--accent-color);
+        color: var(--bg-primary);
+        border-color: var(--accent-color);
+      }
+
+      .filter-indicator {
+        font-size: 9px;
+        transition: transform 0.2s ease;
+      }
+
+      .filter-toggle.active .filter-indicator {
+        transform: rotate(90deg);
+      }
+
+      .filter-badge {
+        background: var(--text-muted);
+        color: var(--bg-primary);
+        border-radius: 10px;
+        padding: 2px 6px;
+        font-size: 9px;
+        min-width: 18px;
+        text-align: center;
+        font-weight: 600;
+        line-height: 1.2;
+      }
+
+      .filter-toggle.active .filter-badge {
+        background: var(--bg-primary);
+        color: var(--accent-color);
+      }
+
+      .filter-panel {
+        background: linear-gradient(180deg, #fcfcfc 0%, #f7f7f7 100%);
+        border-bottom: 1px solid var(--border-secondary);
+        padding: 16px 18px;
+        display: none;
+        border-top: 1px solid var(--border-secondary);
+      }
+
+      .filter-panel.expanded {
+        display: block;
+        animation: slideDown 0.2s ease-out;
+      }
+
+      @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .filter-form {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+
+      .filter-form-label {
+        font-size: 11px;
+        color: var(--text-secondary);
+        font-weight: 500;
+        min-width: 32px;
+      }
+
+      .filter-form select,
+      .filter-form input {
+        padding: 5px 8px;
+        border: 1px solid var(--border-primary);
+        background: var(--bg-primary);
+        font-size: 11px;
+        font-family: monospace;
+        color: var(--text-primary);
+        border-radius: 2px;
+        transition: all 0.15s ease;
+      }
+
+      .filter-form select {
+        min-width: 120px;
+        cursor: pointer;
+      }
+
+      .filter-form input {
+        min-width: 180px;
+        flex: 1;
+        max-width: 240px;
+      }
+
+      .filter-form select:focus,
+      .filter-form input:focus {
+        outline: none;
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 2px rgba(64, 64, 64, 0.1);
+      }
+
+      .btn {
+        padding: 5px 12px;
+        border: 1px solid var(--border-primary);
+        background: var(--bg-primary);
+        cursor: pointer;
+        font-size: 11px;
+        color: var(--text-primary);
+        border-radius: 2px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        font-weight: 500;
+        user-select: none;
+      }
+
+      .btn:hover {
+        background: var(--bg-tertiary);
+        border-color: var(--accent-color);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .btn:active {
+        transform: translateY(0);
+        box-shadow: none;
+      }
+
+      .btn-primary {
+        background: var(--accent-color);
+        border-color: var(--accent-color);
+        color: var(--bg-primary);
+      }
+
+      .btn-primary:hover {
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
+        transform: translateY(-1px);
+      }
+
+      .btn-danger {
+        color: var(--danger-color);
+        border-color: transparent;
+      }
+
+      .btn-danger:hover {
+        background: rgba(168, 90, 90, 0.1);
+        border-color: var(--danger-color);
+        color: var(--danger-hover);
+      }
+
+      .filter-list {
+        min-height: 24px;
+        max-height: 120px;
+        overflow-y: auto;
+      }
+
+      .filter-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 10px;
+        margin-bottom: 4px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-secondary);
+        border-radius: 2px;
+        font-size: 11px;
+        transition: all 0.15s ease;
+      }
+
+      .filter-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .filter-item:hover {
+        background: var(--bg-tertiary);
+        border-color: var(--border-primary);
+      }
+
+      .filter-text {
+        font-family: monospace;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .filter-field {
+        color: var(--text-secondary);
+        font-weight: 500;
+      }
+
+      .filter-pattern {
+        color: var(--accent-color);
+        font-weight: 600;
+        background: var(--bg-tertiary);
+        padding: 1px 4px;
+        border-radius: 2px;
+      }
+
+      .filter-controls {
+        margin-top: 12px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .empty-filters {
+        color: var(--text-disabled);
+        font-style: italic;
+        font-size: 11px;
+        text-align: center;
+        padding: 12px;
+      }
+
+      .table-container {
+        background: var(--bg-primary);
+        position: relative;
+        height: calc(100vh - 280px);
+        min-height: 400px;
+        overflow: auto;
+        border-bottom: 1px solid var(--border-secondary);
+      }
+
+      .table-container::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+
+      .table-container::-webkit-scrollbar-track {
+        background: var(--bg-secondary);
+      }
+
+      .table-container::-webkit-scrollbar-thumb {
+        background: var(--border-primary);
+        border-radius: 4px;
+      }
+
+      .table-container::-webkit-scrollbar-thumb:hover {
+        background: var(--text-muted);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-variant-numeric: tabular-nums;
+      }
+
+      thead {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+
+      th {
+        background: linear-gradient(180deg, #f0f0f0 0%, #e8e8e8 100%);
+        color: var(--text-primary);
+        text-align: left;
+        font-weight: 600;
+        font-size: 11px;
+        border-right: 1px solid var(--border-secondary);
+        border-bottom: 1px solid var(--border-primary);
+        user-select: none;
+        transition: all 0.15s ease;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+        position: relative;
+      }
+
+      th:last-child {
+        border-right: none;
+      }
+
+      th:hover {
+        background: linear-gradient(180deg, #e8e8e8 0%, #ddd 100%);
+      }
+
+      .th-content {
+        padding: 8px 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+      }
+
+      .th-title {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .sort-indicator {
+        color: var(--text-muted);
+        font-size: 10px;
+        opacity: 0.6;
+        transition: all 0.15s ease;
+      }
+
+      th:hover .sort-indicator {
+        opacity: 1;
+        color: var(--text-secondary);
+      }
+
+      td {
+        border-right: 1px solid var(--border-secondary);
+        border-bottom: 1px solid var(--border-secondary);
+        font-size: 11px;
+        vertical-align: top;
+        font-family: monospace;
+        color: var(--text-primary);
+        line-height: 1.4;
+        background: var(--bg-primary);
+      }
+
+      td:last-child {
+        border-right: none;
+      }
+
+      .cell-content {
+        padding: 6px 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 200px;
+      }
+
+      tbody tr:hover {
+        background: var(--bg-secondary);
+      }
+
+      tbody tr:hover td {
+        background: var(--bg-secondary);
+      }
+
+      tbody tr:nth-child(even) td {
+        background: #fafafa;
+      }
+
+      tbody tr:nth-child(even):hover td {
+        background: var(--bg-secondary);
+      }
+
+      .footer {
+        padding: 10px 18px;
+        background: linear-gradient(180deg, #f8f8f8 0%, #efefef 100%);
+        color: var(--text-muted);
+        font-size: 10px;
+        text-align: center;
+        font-family: monospace;
+        border-top: 1px solid var(--border-primary);
+      }
+
+      .footer-content {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .footer-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .footer-label {
+        color: var(--text-disabled);
+      }
+
+      .footer-value {
+        color: var(--text-secondary);
+        font-weight: 500;
+      }
+
+      @media (max-width: 1200px) {
+        body { padding: 8px; }
+        .container { border-radius: 0; }
+        .toolbar { flex-direction: column; align-items: stretch; gap: 12px; }
+        .status-info { justify-content: space-between; }
+        .filter-form { flex-direction: column; align-items: stretch; gap: 8px; }
+        .filter-item { flex-direction: column; align-items: stretch; gap: 6px; }
+        .th-content { padding: 6px 8px; }
+        .cell-content { padding: 4px 8px; max-width: 150px; }
+        .footer-content { flex-direction: column; gap: 4px; }
+      }`
+
+    const scriptCode = `
+      let sortDirection = [];
+      let originalData = Array.from(document.querySelectorAll('#tableBody tr'));
+      let activeFilters = [];
+      let filterIdCounter = 0;
+      let filterPanelExpanded = false;
+
+      const fieldNames = [${displayFields.value.map(field => `'${field.title}'`).join(', ')}];
+
+      function sortTable(columnIndex) {
+        const table = document.getElementById('tableBody');
+        const rows = Array.from(table.querySelectorAll('tr'));
+
+        if (!sortDirection[columnIndex]) sortDirection[columnIndex] = 'asc';
+        else sortDirection[columnIndex] = sortDirection[columnIndex] === 'asc' ? 'desc' : 'asc';
+
+        rows.sort((a, b) => {
+          const aText = a.cells[columnIndex].querySelector('.cell-content').textContent.trim();
+          const bText = b.cells[columnIndex].querySelector('.cell-content').textContent.trim();
+
+          const aNum = parseFloat(aText);
+          const bNum = parseFloat(bText);
+
+          let comparison = 0;
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            comparison = aNum - bNum;
+          } else {
+            comparison = aText.localeCompare(bText, 'zh-CN');
           }
-        }
 
-        if (shouldShow) {
-          row.style.display = '';
-          visibleCount++;
+          return sortDirection[columnIndex] === 'asc' ? comparison : -comparison;
+        });
+
+        document.querySelectorAll('.sort-indicator').forEach((indicator, index) => {
+          if (index === columnIndex) {
+            indicator.textContent = sortDirection[columnIndex] === 'asc' ? '↑' : '↓';
+          } else {
+            indicator.textContent = '⇅';
+          }
+        });
+
+        rows.forEach(row => table.appendChild(row));
+      }
+
+      function toggleFilterPanel() {
+        filterPanelExpanded = !filterPanelExpanded;
+        const panel = document.getElementById('filterPanel');
+        const toggle = document.getElementById('filterToggle');
+
+        if (filterPanelExpanded) {
+          panel.classList.add('expanded');
+          toggle.classList.add('active');
         } else {
-          row.style.display = 'none';
+          panel.classList.remove('expanded');
+          toggle.classList.remove('active');
         }
-      });
+      }
 
-      document.getElementById('displayCount').textContent = visibleCount;
-    }
+      function addFilter() {
+        const fieldSelect = document.getElementById('filterField');
+        const patternInput = document.getElementById('filterPattern');
 
-    document.addEventListener('DOMContentLoaded', function() {
-      document.getElementById('filterPattern').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-          addFilter();
+        const fieldIndex = parseInt(fieldSelect.value);
+        const pattern = patternInput.value.trim();
+
+        if (pattern === '') return;
+
+        try {
+          new RegExp(pattern, 'i');
+        } catch (e) {
+          alert('正则表达式语法错误');
+          return;
         }
-      });
 
-      updateFilterDisplay();
-    });`
+        const filter = {
+          id: filterIdCounter++,
+          fieldIndex: fieldIndex,
+          fieldName: fieldNames[fieldIndex],
+          pattern: pattern,
+          regex: new RegExp(pattern, 'i')
+        };
 
-  const htmlContent = [
-    '<!DOCTYPE html>',
-    '<html lang="zh-CN">',
-    '<head>',
-    '  <meta charset="UTF-8">',
-    '  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
-    `  <title>${meta.tableName} - 数据视图</title>`,
-    '  <style>',
-    styles,
-    '  </style>',
-    '</head>',
-    '<body>',
-    '  <div class="container">',
-    '    <div class="header">',
-    `      <h1 class="header-title">${meta.tableName}</h1>`,
-    '      <div class="meta-grid">',
-    `        <div class="meta-item"><span class="meta-label">导出时间</span><span class="meta-value">${meta.exportTime}</span></div>`,
-    `        <div class="meta-item"><span class="meta-label">哈希识别码</span><span class="meta-value">${meta.hash.substring(0, 8)}</span></div>`,
-    `        <div class="meta-item"><span class="meta-label">记录数</span><span class="meta-value">${meta.totalCount}</span></div>`,
-    `        <div class="meta-item"><span class="meta-label">字段数</span><span class="meta-value">${displayFields.value.length}</span></div>`,
-    '      </div>',
-    '    </div>',
-    '    ',
-    '    <div class="toolbar">',
-    '      <div class="status-info">',
-    '        <div class="record-count">',
-    '          <span>显示</span>',
-    '          <span class="record-number" id="displayCount">' + meta.totalCount + '</span>',
-    '          <span>/ ' + meta.totalCount + ' 条记录</span>',
-    '        </div>',
-    '      </div>',
-    '      <div class="filter-toggle" id="filterToggle" onclick="toggleFilterPanel()">',
-    '        <span class="filter-indicator">▶</span>',
-    '        <span>筛选器</span>',
-    '        <span class="filter-badge" id="filterBadge">0</span>',
-    '      </div>',
-    '    </div>',
-    '    ',
-    '    <div class="filter-panel" id="filterPanel">',
-    '      <div class="filter-form">',
-    '        <span class="filter-form-label">字段</span>',
-    '        <select id="filterField">',
-    fieldOptions,
-    '        </select>',
-    '        <span class="filter-form-label">模式</span>',
-    '        <input type="text" id="filterPattern" placeholder="正则表达式">',
-    '        <button class="btn btn-primary" onclick="addFilter()">添加筛选</button>',
-    '      </div>',
-    '      ',
-    '      <div id="filterList" class="filter-list">',
-    '        <div class="empty-filters">无激活筛选条件</div>',
-    '      </div>',
-    '      ',
-    '      <div class="filter-controls">',
-    '        <button class="btn" onclick="clearAllFilters()">清除全部</button>',
-    '      </div>',
-    '    </div>',
-    '    ',
-    '    <div class="table-container">',
-    '      <table id="dataTable">',
-    '        <thead>',
-    `          <tr>${headers}</tr>`,
-    '        </thead>',
-    '        <tbody id="tableBody">',
-    rows,
-    '        </tbody>',
-    '      </table>',
-    '    </div>',
-    '    ',
-    '    <div class="footer">',
-    '      <div class="footer-content">',
-    `        <div class="footer-item"><span class="footer-label">生成工具:</span><span class="footer-value">Vue 标准表格组件@WaterRun</span></div>`,
-    `        <div class="footer-item"><span class="footer-label">哈希值:</span><span class="footer-value">${meta.hash}</span></div>`,
-    `        <div class="footer-item"><span class="footer-label">导出时间:</span><span class="footer-value">${meta.exportTime}</span></div>`,
-    '      </div>',
-    '    </div>',
-    '  </div>',
-    '',
-    '  <script>',
-    scriptCode,
-    '  </' + 'script>',
-    '</' + 'body>',
-    '</' + 'html>'
-  ].join('\n')
+        activeFilters.push(filter);
+        patternInput.value = '';
 
-  downloadFile(htmlContent, `${generateFileName('HTML')}.html`)
-  isExportMenuVisible.value = false
+        updateFilterDisplay();
+        applyFilters();
+      }
+
+      function removeFilter(filterId) {
+        activeFilters = activeFilters.filter(f => f.id !== filterId);
+        updateFilterDisplay();
+        applyFilters();
+      }
+
+      function clearAllFilters() {
+        activeFilters = [];
+        updateFilterDisplay();
+        applyFilters();
+      }
+
+      function updateFilterDisplay() {
+        const filterList = document.getElementById('filterList');
+        const filterBadge = document.getElementById('filterBadge');
+
+        filterBadge.textContent = activeFilters.length;
+
+        if (activeFilters.length === 0) {
+          filterList.innerHTML = '<div class="empty-filters">无激活筛选条件</div>';
+          return;
+        }
+
+        const filtersHtml = activeFilters.map(filter =>
+          '<div class="filter-item">' +
+            '<div class="filter-text">' +
+              '<span class="filter-field">' + filter.fieldName + '</span>' +
+              '<span class="filter-pattern">/' + filter.pattern + '/i</span>' +
+            '</div>' +
+            '<button class="btn btn-danger" onclick="removeFilter(' + filter.id + ')">移除</button>' +
+          '</div>'
+        ).join('');
+
+        filterList.innerHTML = filtersHtml;
+      }
+
+      function applyFilters() {
+        let visibleCount = 0;
+
+        originalData.forEach(row => {
+          let shouldShow = true;
+
+          for (const filter of activeFilters) {
+            const cellText = row.cells[filter.fieldIndex].querySelector('.cell-content').textContent.trim();
+            if (!filter.regex.test(cellText)) {
+              shouldShow = false;
+              break;
+            }
+          }
+
+          if (shouldShow) {
+            row.style.display = '';
+            visibleCount++;
+          } else {
+            row.style.display = 'none';
+          }
+        });
+
+        document.getElementById('displayCount').textContent = visibleCount;
+      }
+
+      document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('filterPattern').addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') {
+            addFilter();
+          }
+        });
+
+        updateFilterDisplay();
+      });`
+
+    const htmlContent = [
+      '<!DOCTYPE html>',
+      '<html lang="zh-CN">',
+      '<head>',
+      '  <meta charset="UTF-8">',
+      '  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+      `  <title>${meta.tableName} - 数据视图</title>`,
+      '  <style>',
+      styles,
+      '  </style>',
+      '</head>',
+      '<body>',
+      '  <div class="container">',
+      '    <div class="header">',
+      `      <h1 class="header-title">${meta.tableName}</h1>`,
+      '      <div class="meta-grid">',
+      `        <div class="meta-item"><span class="meta-label">导出时间</span><span class="meta-value">${meta.exportTime}</span></div>`,
+      `        <div class="meta-item"><span class="meta-label">哈希识别码</span><span class="meta-value">${meta.hash.substring(0, 8)}</span></div>`,
+      `        <div class="meta-item"><span class="meta-label">记录数</span><span class="meta-value">${meta.totalCount}</span></div>`,
+      `        <div class="meta-item"><span class="meta-label">字段数</span><span class="meta-value">${displayFields.value.length}</span></div>`,
+      '      </div>',
+      '    </div>',
+      '    ',
+      '    <div class="toolbar">',
+      '      <div class="status-info">',
+      '        <div class="record-count">',
+      '          <span>显示</span>',
+      '          <span class="record-number" id="displayCount">' + meta.totalCount + '</span>',
+      '          <span>/ ' + meta.totalCount + ' 条记录</span>',
+      '        </div>',
+      '      </div>',
+      '      <div class="filter-toggle" id="filterToggle" onclick="toggleFilterPanel()">',
+      '        <span class="filter-indicator">▶</span>',
+      '        <span>筛选器</span>',
+      '        <span class="filter-badge" id="filterBadge">0</span>',
+      '      </div>',
+      '    </div>',
+      '    ',
+      '    <div class="filter-panel" id="filterPanel">',
+      '      <div class="filter-form">',
+      '        <span class="filter-form-label">字段</span>',
+      '        <select id="filterField">',
+      fieldOptions,
+      '        </select>',
+      '        <span class="filter-form-label">模式</span>',
+      '        <input type="text" id="filterPattern" placeholder="正则表达式">',
+      '        <button class="btn btn-primary" onclick="addFilter()">添加筛选</button>',
+      '      </div>',
+      '      ',
+      '      <div id="filterList" class="filter-list">',
+      '        <div class="empty-filters">无激活筛选条件</div>',
+      '      </div>',
+      '      ',
+      '      <div class="filter-controls">',
+      '        <button class="btn" onclick="clearAllFilters()">清除全部</button>',
+      '      </div>',
+      '    </div>',
+      '    ',
+      '    <div class="table-container">',
+      '      <table id="dataTable">',
+      '        <thead>',
+      `          <tr>${headers}</tr>`,
+      '        </thead>',
+      '        <tbody id="tableBody">',
+      rows,
+      '        </tbody>',
+      '      </table>',
+      '    </div>',
+      '    ',
+      '    <div class="footer">',
+      '      <div class="footer-content">',
+      `        <div class="footer-item"><span class="footer-label">生成工具:</span><span class="footer-value">Vue 标准表格组件@WaterRun</span></div>`,
+      `        <div class="footer-item"><span class="footer-label">哈希值:</span><span class="footer-value">${meta.hash}</span></div>`,
+      `        <div class="footer-item"><span class="footer-label">导出时间:</span><span class="footer-value">${meta.exportTime}</span></div>`,
+      '      </div>',
+      '    </div>',
+      '  </div>',
+      '',
+      '  <script>',
+      scriptCode,
+      '  </' + 'script>',
+      '</' + 'body>',
+      '</' + 'html>'
+    ].join('\n')
+
+    downloadFile(htmlContent, `${generateFileName('HTML')}.html`)
+  } finally {
+    isProcessing.value = false
+    processingOperation.value = ''
+    checkTableStatus()
+  }
 }
 
 const exportToText = async (): Promise<void> => {
-  const fullData = await getFullTableData()
-  if (!fullData.length) {
-    downloadFile('导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun', `${generateFileName('Text')}.txt`)
+  isProcessing.value = true
+  processingOperation.value = '导出表格为纯文本'
+  currentStatus.value = 'processing'
+
+  try {
     isExportMenuVisible.value = false
-    return
-  }
 
-  const meta = await generateExportMeta()
-  const headers = displayFields.value.map(field => field.title).join('\t')
-  const rows = fullData.map(row => {
-    if (Array.isArray(row)) {
-      return displayFields.value.map((_field, index) => row[index] || '').join('\t')
-    } else {
-      const values = Object.values(row)
-      return displayFields.value.map((_field, index) => values[index] || '').join('\t')
+    const fullData = await getFullTableData()
+    if (!fullData.length) {
+      downloadFile('导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun', `${generateFileName('Text')}.txt`)
+      return
     }
-  }).join('\n')
 
-  const content = `${meta.tableName}
+    const meta = await generateExportMeta()
+    const headers = displayFields.value.map(field => field.title).join('\t')
+    const rows = fullData.map(row => {
+      if (Array.isArray(row)) {
+        return displayFields.value.map((_field, index) => row[index] || '').join('\t')
+      } else {
+        const values = Object.values(row)
+        return displayFields.value.map((_field, index) => values[index] || '').join('\t')
+      }
+    }).join('\n')
+
+    const content = `${meta.tableName}
 导出时间: ${meta.exportTime}
 哈希识别码: ${meta.hash}
 总项目数: ${meta.totalCount}
@@ -2591,57 +2699,77 @@ ${rows}
 
 导出工具: Vue标准表格组件@WaterRun`
 
-  downloadFile(content, `${generateFileName('Text')}.txt`)
-  isExportMenuVisible.value = false
+    downloadFile(content, `${generateFileName('Text')}.txt`)
+  } finally {
+    isProcessing.value = false
+    processingOperation.value = ''
+    checkTableStatus()
+  }
 }
 
 const exportToXML = async (): Promise<void> => {
-  const fullData = await getFullTableData()
-  if (!fullData.length) {
-    downloadFile('<?xml version="1.0" encoding="UTF-8"?><error>导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun</error>', `${generateFileName('XML')}.xml`)
+  isProcessing.value = true
+  processingOperation.value = '导出表格为XML'
+  currentStatus.value = 'processing'
+
+  try {
     isExportMenuVisible.value = false
-    return
-  }
 
-  const meta = await generateExportMeta()
-  const rows = fullData.map(row => {
-    const fields = displayFields.value.map((field, index) => {
-      const value = Array.isArray(row) ? (row[index] || '') : (Object.values(row)[index] || '')
-      return `    <${field.key}>${value}</${field.key}>`
+    const fullData = await getFullTableData()
+    if (!fullData.length) {
+      downloadFile('<?xml version="1.0" encoding="UTF-8"?><error>导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun</error>', `${generateFileName('XML')}.xml`)
+      return
+    }
+
+    const meta = await generateExportMeta()
+    const rows = fullData.map(row => {
+      const fields = displayFields.value.map((field, index) => {
+        const value = Array.isArray(row) ? (row[index] || '') : (Object.values(row)[index] || '')
+        return `    <${field.key}>${value}</${field.key}>`
+      }).join('\n')
+      return `  <row>\n${fields}\n  </row>`
     }).join('\n')
-    return `  <row>\n${fields}\n  </row>`
-  }).join('\n')
 
-  const content = `<?xml version="1.0" encoding="UTF-8"?>
-  <table name="${meta.tableName}">
-    <meta>
-      <exportTime>${meta.exportTime}</exportTime>
-      <hash>${meta.hash}</hash>
-      <totalCount>${meta.totalCount}</totalCount>
-      <exportedBy>Vue标准表格组件@WaterRun</exportedBy>
-    </meta>
-    <fields>
-  ${displayFields.value.map(field => `    <field key="${field.key}" title="${field.title}"/>`).join('\n')}
-    </fields>
-    <data>
-  ${rows}
-    </data>
-  </table>`
+    const content = `<?xml version="1.0" encoding="UTF-8"?>
+    <table name="${meta.tableName}">
+      <meta>
+        <exportTime>${meta.exportTime}</exportTime>
+        <hash>${meta.hash}</hash>
+        <totalCount>${meta.totalCount}</totalCount>
+        <exportedBy>Vue标准表格组件@WaterRun</exportedBy>
+      </meta>
+      <fields>
+    ${displayFields.value.map(field => `    <field key="${field.key}" title="${field.title}"/>`).join('\n')}
+      </fields>
+      <data>
+    ${rows}
+      </data>
+    </table>`
 
-  downloadFile(content, `${generateFileName('XML')}.xml`)
-  isExportMenuVisible.value = false
+    downloadFile(content, `${generateFileName('XML')}.xml`)
+  } finally {
+    isProcessing.value = false
+    processingOperation.value = ''
+    checkTableStatus()
+  }
 }
 
 const exportToYML = async (): Promise<void> => {
-  const fullData = await getFullTableData()
-  if (!fullData.length) {
-    downloadFile('error: "导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun"', `${generateFileName('YML')}.yml`)
-    isExportMenuVisible.value = false
-    return
-  }
+  isProcessing.value = true
+  processingOperation.value = '导出表格为YML'
+  currentStatus.value = 'processing'
 
-  const meta = await generateExportMeta()
-  const content = `# ${meta.tableName} 数据导出
+  try {
+    isExportMenuVisible.value = false
+
+    const fullData = await getFullTableData()
+    if (!fullData.length) {
+      downloadFile('error: "导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun"', `${generateFileName('YML')}.yml`)
+      return
+    }
+
+    const meta = await generateExportMeta()
+    const content = `# ${meta.tableName} 数据导出
 meta:
 tableName: "${meta.tableName}"
 exportTime: "${meta.exportTime}"
@@ -2654,32 +2782,42 @@ ${displayFields.value.map(field => `  - key: "${field.key}"\n    title: "${field
 
 data:
 ${fullData.map(row => {
-    if (Array.isArray(row)) {
-      return '  - ' + displayFields.value.map((field, index) =>
-          `${field.key}: "${row[index] || ''}"`
-      ).join('\n    ')
-    } else {
-      const values = Object.values(row)
-      return '  - ' + displayFields.value.map((field, index) =>
-          `${field.key}: "${values[index] || ''}"`
-      ).join('\n    ')
-    }
-  }).join('\n')}`
+      if (Array.isArray(row)) {
+        return '  - ' + displayFields.value.map((field, index) =>
+            `${field.key}: "${row[index] || ''}"`
+        ).join('\n    ')
+      } else {
+        const values = Object.values(row)
+        return '  - ' + displayFields.value.map((field, index) =>
+            `${field.key}: "${values[index] || ''}"`
+        ).join('\n    ')
+      }
+    }).join('\n')}`
 
-  downloadFile(content, `${generateFileName('YML')}.yml`)
-  isExportMenuVisible.value = false
+    downloadFile(content, `${generateFileName('YML')}.yml`)
+  } finally {
+    isProcessing.value = false
+    processingOperation.value = ''
+    checkTableStatus()
+  }
 }
 
 const exportToTOML = async (): Promise<void> => {
-  const fullData = await getFullTableData()
-  if (!fullData.length) {
-    downloadFile('error = "导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun"', `${generateFileName('TOML')}.toml`)
-    isExportMenuVisible.value = false
-    return
-  }
+  isProcessing.value = true
+  processingOperation.value = '导出表格为TOML'
+  currentStatus.value = 'processing'
 
-  const meta = await generateExportMeta()
-  const content = `# ${meta.tableName} 数据导出
+  try {
+    isExportMenuVisible.value = false
+
+    const fullData = await getFullTableData()
+    if (!fullData.length) {
+      downloadFile('error = "导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun"', `${generateFileName('TOML')}.toml`)
+      return
+    }
+
+    const meta = await generateExportMeta()
+    const content = `# ${meta.tableName} 数据导出
 
 [meta]
 tableName = "${meta.tableName}"
@@ -2690,35 +2828,45 @@ exportedBy = "Vue标准表格组件@WaterRun"
 
 ${displayFields.value.map(field => `[[fields]]\nkey = "${field.key}"\ntitle = "${field.title}"`).join('\n\n')}
 
-${fullData.map((row, _index) => {
-    if (Array.isArray(row)) {
-      return `[[data]]\n` + displayFields.value.map((field, index) =>
-          `${field.key} = "${row[index] || ''}"`
-      ).join('\n')
-    } else {
-      const values = Object.values(row)
-      return `[[data]]\n` + displayFields.value.map((field, index) =>
-          `${field.key} = "${values[index] || ''}"`
-      ).join('\n')
-    }
-  }).join('\n\n')}`
+${fullData.map((row) => {
+      if (Array.isArray(row)) {
+        return `[[data]]\n` + displayFields.value.map((field, index) =>
+            `${field.key} = "${row[index] || ''}"`
+        ).join('\n')
+      } else {
+        const values = Object.values(row)
+        return `[[data]]\n` + displayFields.value.map((field, index) =>
+            `${field.key} = "${values[index] || ''}"`
+        ).join('\n')
+      }
+    }).join('\n\n')}`
 
-  downloadFile(content, `${generateFileName('TOML')}.toml`)
-  isExportMenuVisible.value = false
+    downloadFile(content, `${generateFileName('TOML')}.toml`)
+  } finally {
+    isProcessing.value = false
+    processingOperation.value = ''
+    checkTableStatus()
+  }
 }
 
 const exportToSQL = async (): Promise<void> => {
-  const fullData = await getFullTableData()
-  if (!fullData.length) {
-    downloadFile('-- 导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun', `${generateFileName('SQL')}.sql`)
-    isExportMenuVisible.value = false
-    return
-  }
+  isProcessing.value = true
+  processingOperation.value = '导出表格为SQL'
+  currentStatus.value = 'processing'
 
-  const meta = await generateExportMeta()
-  const tableName = meta.tableName.replace(/[^a-zA-Z0-9_]/g, '_')
-  const fields = displayFields.value.map(field => `${field.key} VARCHAR(255)`).join(',\n  ')
-  const createTable = `-- ${meta.tableName} 数据导出
+  try {
+    isExportMenuVisible.value = false
+
+    const fullData = await getFullTableData()
+    if (!fullData.length) {
+      downloadFile('-- 导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun', `${generateFileName('SQL')}.sql`)
+      return
+    }
+
+    const meta = await generateExportMeta()
+    const tableName = meta.tableName.replace(/[^a-zA-Z0-9_]/g, '_')
+    const fields = displayFields.value.map(field => `${field.key} VARCHAR(255)`).join(',\n  ')
+    const createTable = `-- ${meta.tableName} 数据导出
 -- 导出时间: ${meta.exportTime}
 -- 哈希识别码: ${meta.hash}
 -- 总项目数: ${meta.totalCount}
@@ -2728,29 +2876,39 @@ ${fields}
 );
 
 `
-  const insertRows = fullData.map(row => {
-    const values = displayFields.value.map((_field, index) => {
-      const value = Array.isArray(row) ? (row[index] || '') : (Object.values(row)[index] || '')
-      return `'${value.toString().replace(/'/g, "''")}'`
-    }).join(', ')
-    return `INSERT INTO ${tableName} VALUES (${values});`
-  }).join('\n')
+    const insertRows = fullData.map(row => {
+      const values = displayFields.value.map((_field, index) => {
+        const value = Array.isArray(row) ? (row[index] || '') : (Object.values(row)[index] || '')
+        return `'${value.toString().replace(/'/g, "''")}'`
+      }).join(', ')
+      return `INSERT INTO ${tableName} VALUES (${values});`
+    }).join('\n')
 
-  const content = createTable + insertRows
-  downloadFile(content, `${generateFileName('SQL')}.sql`)
-  isExportMenuVisible.value = false
+    const content = createTable + insertRows
+    downloadFile(content, `${generateFileName('SQL')}.sql`)
+  } finally {
+    isProcessing.value = false
+    processingOperation.value = ''
+    checkTableStatus()
+  }
 }
 
 const exportToPython = async (): Promise<void> => {
-  const fullData = await getFullTableData()
-  if (!fullData.length) {
-    downloadFile('# 导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun\ndata = []', `${generateFileName('Python')}.py`)
-    isExportMenuVisible.value = false
-    return
-  }
+  isProcessing.value = true
+  processingOperation.value = '导出表格为Python字典'
+  currentStatus.value = 'processing'
 
-  const meta = await generateExportMeta()
-  const content = `# ${meta.tableName} 数据导出
+  try {
+    isExportMenuVisible.value = false
+
+    const fullData = await getFullTableData()
+    if (!fullData.length) {
+      downloadFile('# 导出失败：数据获取异常\\n\\n这最可能是由于数据为空，或数据量过大受浏览器JS引擎限制导致的。\\n\\n使用页面中提供的由后端实现的导出功能。如果没有，联系系统管理员。\\n\\n(文件的基本信息：表名，时间，哈希识别码)\\n\\nVue 标准表格组件@WaterRun\ndata = []', `${generateFileName('Python')}.py`)
+      return
+    }
+
+    const meta = await generateExportMeta()
+    const content = `# ${meta.tableName} 数据导出
 # 导出时间: ${meta.exportTime}
 # 哈希识别码: ${meta.hash}
 # 总项目数: ${meta.totalCount}
@@ -2768,11 +2926,14 @@ fields = ${JSON.stringify(displayFields.value.map(field => ({key: field.key, tit
 
 data = ${JSON.stringify(fullData, null, 4)}`
 
-  downloadFile(content, `${generateFileName('Python')}.py`)
-  isExportMenuVisible.value = false
+    downloadFile(content, `${generateFileName('Python')}.py`)
+  } finally {
+    isProcessing.value = false
+    processingOperation.value = ''
+    checkTableStatus()
+  }
 }
 
-// 定位弹出菜单
 const positionFunctionPopup = (trigger: HTMLElement, popup: HTMLElement): void => {
   if (!trigger || !popup) return
 
@@ -2783,7 +2944,6 @@ const positionFunctionPopup = (trigger: HTMLElement, popup: HTMLElement): void =
     popup.style.position = 'fixed'
     popup.style.zIndex = '1100'
 
-    // 强制重新计算popup尺寸
     popup.style.visibility = 'hidden'
     popup.style.display = 'block'
     const popupWidth = popup.offsetWidth
@@ -2812,9 +2972,8 @@ const positionFunctionPopup = (trigger: HTMLElement, popup: HTMLElement): void =
   })
 }
 
-// 标记功能菜单控制
 const onMarkTriggerMouseEnter = (): void => {
-  if (isMarkingDisabled.value) return
+  if (isMarkingTemporarilyDisabled.value) return
 
   isMouseOverMarkTrigger.value = true
   if (markHoverTimer.value !== null) {
@@ -2878,9 +3037,8 @@ const hideMarkMenu = (): void => {
   }
 }
 
-// 导出功能菜单控制
 const onExportTriggerMouseEnter = (): void => {
-  if (isOutputDisabled.value) return
+  if (isOutputTemporarilyDisabled.value) return
 
   isMouseOverExportTrigger.value = true
   if (exportHoverTimer.value !== null) {
@@ -3004,7 +3162,7 @@ const updateTableHeightFromSliderStep = (event: Event): void => {
 }
 
 const goToPage = (page: number): void => {
-  if (page < 1 || page > totalPages.value) return
+  if (page < 1 || page > totalPages.value || isGotoTemporarilyDisabled.value) return
   currentPage.value = page
 
   gotoPageInput.value = ''
@@ -3089,33 +3247,28 @@ const adminTooltipContent = computed<string>(() => {
   const description = config.value.description || ''
   const initialHeight = config.value.initialHeight || 15
   const minWidthRatio = config.value.minWidthRatio || 1.0
-  const totalCount = config.value.totalCount || 0
+  const totalCountValue = config.value.totalCount || 0
   const data = config.value.data || []
 
   let content = ''
 
-  // 表格信息参数部分
   if (!description) {
     content += `<strong>构建表时没有表格说明参数.</strong><br/>`
   } else {
     content += `<strong>表格说明:</strong> ${description}<br/>`
   }
 
-  // 非默认值参数说明
   const configDetails: string[] = []
 
-  // 检查字段size配置
   const hasCustomSize = config.value.fields.some(field => field.size !== undefined && field.size !== null)
   if (hasCustomSize) {
     configDetails.push('字段宽度已独立配置')
   }
 
-  // 检查初始高度
   if (initialHeight !== 15) {
     configDetails.push(`表高已设定为${initialHeight}行`)
   }
 
-  // 检查宽度倍率
   if (minWidthRatio !== 1.0) {
     configDetails.push(`宽度倍率已调整为${minWidthRatio}x`)
   }
@@ -3126,14 +3279,12 @@ const adminTooltipContent = computed<string>(() => {
     content += `<strong>所有配置参数均为默认值.</strong><br/><br/>`
   }
 
-  // 管理员注释部分
   if (comment) {
     content += `<strong>管理员已配置注释信息:</strong><br/>${comment}<br/><br/>`
   } else {
     content += `<strong>管理员未配置任何注释.</strong><br/><br/>`
   }
 
-  // 管理员功能控制部分
   const restrictions: string[] = []
   if (isMarkingDisabled.value) restrictions.push('标记控件')
   if (isOutputDisabled.value) restrictions.push('导出控件')
@@ -3155,10 +3306,10 @@ const adminTooltipContent = computed<string>(() => {
 
   content += `<br/>`
 
-  // 数据状态部分
-  if (data.length === 0 && totalCount === 0) {
+  if (data.length === 0 && totalCountValue === 0) {
     content += `<strong>由空数据构造.考虑使用异步加载场景.</strong>`
-  } else if (totalCount > 0) {
+  } else if (totalCountValue > 0) {
+    // 这部分在原代码中是空的，保持原样
   } else {
     content += `<strong>由非空数据构造(数据量: ${data.length})</strong>`
   }
@@ -3646,7 +3797,6 @@ defineExpose({
   font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* 统一按键悬浮效果 */
 .md-button-hover-unified:hover {
   background: rgba(0, 0, 0, 0.04) !important;
 }
@@ -3759,7 +3909,6 @@ defineExpose({
   border-radius: 50%;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  /* 添加立体阴影效果 */
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
@@ -3805,13 +3954,13 @@ defineExpose({
   transition: opacity 0.2s ease;
 }
 
-.md-function-trigger:hover {
+.md-function-trigger:hover:not(.disabled) {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.25), 0 6px 12px rgba(0, 0, 0, 0.2);
   transform: scale(1.05);
   background: #fff;
 }
 
-.md-function-trigger:hover .md-function-icon {
+.md-function-trigger:hover:not(.disabled) .md-function-icon {
   opacity: 1;
 }
 
@@ -3929,12 +4078,12 @@ defineExpose({
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-.md-height-adjust-trigger:hover {
+.md-height-adjust-trigger:hover:not(.disabled) {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.25), 0 6px 12px rgba(0, 0, 0, 0.2);
   transform: scale(1.05);
 }
 
-.md-height-adjust-trigger:hover .md-adjust-icon-large {
+.md-height-adjust-trigger:hover:not(.disabled) .md-adjust-icon-large {
   opacity: 1;
 }
 
@@ -3942,6 +4091,18 @@ defineExpose({
   background: #f5f5f5;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.15);
   transform: scale(0.95);
+}
+
+.md-height-adjust-trigger.disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.md-height-adjust-trigger.disabled:hover {
+  transform: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 .md-adjust-icon-large {
@@ -4105,8 +4266,12 @@ defineExpose({
   width: 100%;
 }
 
-.md-data-row:hover {
+.md-data-row:hover:not(.marking-disabled) {
   background: rgba(95, 99, 104, 0.08);
+}
+
+.md-data-row.marking-disabled {
+  cursor: default;
 }
 
 .md-data-row.highlighted {
@@ -4252,7 +4417,7 @@ defineExpose({
   min-width: 60px;
   padding: 8px 28px 8px 12px;
   border: 2px solid #dadce0;
-  border-radius: 8px 0 0 8px;
+  border-radius: 8px;
   font-size: 16px;
   text-align: center;
   font-style: italic;
@@ -4260,7 +4425,6 @@ defineExpose({
   color: #000000;
   font-weight: 600;
   background: #ffffff;
-  border-right: none;
 }
 
 .md-goto-input-container .md-goto-input:focus {
@@ -4275,16 +4439,9 @@ defineExpose({
   max-width: 240px;
 }
 
-.md-goto-input:focus {
-  outline: none;
-  border-color: #f4f4f4;
-  box-shadow: 0 0 0 3px rgba(241, 241, 241, 0.1);
-  font-style: normal;
-}
-
-.md-goto-input-wide {
-  min-width: 180px;
-  max-width: 240px;
+.md-goto-input-container .md-goto-input.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .md-goto-button {
@@ -4377,6 +4534,11 @@ defineExpose({
   z-index: 10;
 }
 
+.md-data-only-overlay {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+}
+
 .md-status-content {
   text-align: center;
   max-width: 400px;
@@ -4462,7 +4624,6 @@ defineExpose({
   position: relative;
 }
 
-/* 过渡动画 */
 .function-popup-enter-active, .function-popup-leave-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -4630,42 +4791,11 @@ defineExpose({
   opacity: 1;
 }
 
-/* 输入框容器 */
 .md-goto-input-container {
   position: relative;
   display: inline-block;
 }
 
-/* 恢复输入框原始样式 */
-.md-goto-input-container .md-goto-input {
-  min-width: 60px;
-  padding: 8px 12px;
-  border: 2px solid #dadce0;
-  border-radius: 8px;
-  font-size: 16px;
-  text-align: center;
-  font-style: italic;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  color: #000000;
-  font-weight: 600;
-  background: #ffffff;
-  /* 为spinner预留右侧空间 */
-  padding-right: 28px;
-}
-
-.md-goto-input-container .md-goto-input:focus {
-  outline: none;
-  border-color: #f4f4f4;
-  box-shadow: 0 0 0 3px rgba(241, 241, 241, 0.1);
-  font-style: normal;
-}
-
-.md-goto-input-container .md-goto-input-wide {
-  min-width: 180px;
-  max-width: 240px;
-}
-
-/* Spinner容器 - 悬浮在右侧 */
 .md-goto-spinner {
   position: absolute;
   right: 4px;
@@ -4723,21 +4853,8 @@ defineExpose({
   opacity: 0.2;
 }
 
-.md-goto-input:disabled + .md-goto-spinner .md-spinner-button {
+.md-goto-spinner.disabled .md-spinner-button {
   cursor: not-allowed;
   opacity: 0.3;
-}
-
-.md-goto-input {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-  border-right: none;
-}
-
-.md-page-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-self: end;
 }
 </style>

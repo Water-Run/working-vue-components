@@ -55,3 +55,10 @@ export interface PageHeaderProps {
         helpContent: "帮助信息,可以写HTML,能够正确解析,可选",
     }
 ```
+
+## 更新  
+
+### `2025-09-28`  
+
+- 更新了展开按钮的样式  
+- 更新了组件信息文本  
