@@ -37,7 +37,7 @@ export default defineConfig({
                 manualChunks: undefined,
             },
         },
-        minify: 'esbuild',
+        minify: false,
         assetsDir: 'assets',
     },
     resolve: {

@@ -1,7 +1,7 @@
 <!--
   标准化页面表格组件
   @author WaterRun
-  @date 2025-09-28
+  @date 2025-09-29
 -->
 
 <template>
@@ -234,7 +234,7 @@
             </div>
             <span class="md-height-text" :class="{ 'disabled-text': isHeightAdjustDisabled }">单页展示</span>
             <input
-                v-model.number="tableHeight"
+                v-model="heightInputValue"
                 class="md-height-input-new"
                 :class="{ 'disabled': isHeightAdjustDisabled }"
                 type="number"
@@ -242,10 +242,10 @@
                 max="75"
                 step="1"
                 :disabled="isHeightAdjustDisabled"
-                :title="isHeightAdjustDisabled ? '管理员已禁用表高调节功能' : ''"
-                @input="isHeightAdjustDisabled ? null : updateTableHeight"
-                @blur="isHeightAdjustDisabled ? null : updateTableHeight"
-                @keyup.enter="isHeightAdjustDisabled ? null : updateTableHeight"
+                :title="isHeightAdjustDisabled ? '管理员已禁用表高调节功能' : '表高调节'"
+                @focus="handleHeightInputFocus"
+                @input="handleHeightInputInput"
+                @blur="handleHeightInputBlur"
             />
             <span class="md-height-text" :class="{ 'disabled-text': isHeightAdjustDisabled }">行</span>
           </div>
@@ -299,9 +299,50 @@
               v-for="field in displayFields"
               :key="field.key"
               class="md-field-cell"
+              :class="{
+                'md-field-pinned': field.isPinned,
+                'md-field-sorted': field.sortState !== 'none',
+                'md-field-disabled': isFieldInteractionDisabled,
+                'md-field-long-pressing': longPressFieldIndex === field.originalIndex
+              }"
               :style="{ flex: `${field.flexGrow} 1 0` }"
+              @mousedown="!isFieldInteractionDisabled ? startFieldLongPress(field.originalIndex, $event) : null"
+              @mouseup="!isFieldInteractionDisabled ? endFieldLongPress() : null"
+              @mouseleave="!isFieldInteractionDisabled ? endFieldLongPress() : null"
+              @click="!isFieldInteractionDisabled && !config.disableSort ? cycleSortState(field.originalIndex) : null"
+              @contextmenu.prevent="!isFieldInteractionDisabled && !config.disableSort ? clearSort() : null"
+              :title="getFieldTooltip(field)"
           >
-            {{ field.title }}
+            <div class="md-field-content">
+              <!-- 左侧置顶图标 -->
+              <div class="md-field-icon-left">
+                <img
+                    v-if="field.isPinned"
+                    src="@material-icons/keep_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
+                    alt="置顶"
+                    class="md-field-icon md-pin-icon"
+                />
+              </div>
+
+              <!-- 中间标题 -->
+              <span class="md-field-title">{{ field.title }}</span>
+
+              <!-- 右侧排序图标 -->
+              <div class="md-field-icon-right">
+                <img
+                    v-if="field.sortState === 'desc'"
+                    src="@material-icons/sort_100dp_000000_FILL0_wght400_GRAD0_opsz48.png?inline"
+                    alt="降序"
+                    class="md-field-icon md-sort-icon"
+                />
+                <img
+                    v-if="field.sortState === 'asc'"
+                    src="@material-icons/sort_100dp_000000_FILL0_wght400_GRAD0_opsz48_reverse.png?inline"
+                    alt="升序"
+                    class="md-field-icon md-sort-icon"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -356,15 +397,16 @@
               :key="`${row._rowId}-${forceUpdateTrigger}`"
               class="md-data-row"
               :class="{ 'highlighted': row._highlighted, 'strikethrough': row._strikethrough, 'marking-disabled': isMarkingTemporarilyDisabled }"
-              @dblclick="isMarkingTemporarilyDisabled ? null : toggleHighlight(row)"
-              @contextmenu.prevent="isMarkingTemporarilyDisabled ? null : toggleStrikethrough(row)"
-              :title="isMarkingDisabled ? '管理员已禁用数据行标记功能' : ''"
+              @dblclick="(isMarkingTemporarilyDisabled || config.disableMarking) ? null : toggleHighlight(row)"
+              @contextmenu.prevent="(isMarkingTemporarilyDisabled || config.disableMarking) ? null : toggleStrikethrough(row)"
+              :title="(isMarkingDisabled || config.disableMarking) ? '管理员已禁用数据行标记功能' : ''"
               v-show="!shouldShowDataOverlay"
           >
             <div
                 v-for="field in displayFields"
                 :key="field.key"
                 class="md-data-cell"
+                :class="{ 'md-data-cell-pinned': field.isPinned }"
                 :style="{ flex: `${field.flexGrow} 1 0` }"
             >
               {{ row[field.key] || '' }}
@@ -630,13 +672,18 @@
       <i><strong>使用指引:</strong></i><br/>
       • 双击数据行进行高亮标记(再次双击移除)<br/>
       • 右键数据行添加删除线(再次右键移除)<br/>
+      • 管理员可配置表的默认行为,禁用表的功能<br/>
+      • 长按字段将该字段置顶(再次长按移除).置顶项将称为第一个字段,可由管理员配置缺省置顶<br/>
+      • 由于表并无给定主键,标记的主键实现于对所有值求和并取唯一哈希,这意味着如果有多项值完全一致的行,标记也会被"同步"而完全一致<br/>
+      • 单击字段以该字段排序数据,以无标记-降序-升序循环,右键清除排序.当数据量较大时,由于排序实现于浏览器的JavaScript中,速度和当前设备性能前相关<br/>
+      • 初次排序后,数据将加载至缓存.注意排序是以当前字段进行字符串排序,结果并不总是和预期一致<br/>
       • 导出较多的数据可能需要较长的时间,耐心等待.实现于当前浏览器的JavaScript中,速度和当前设备的性能强相关<br/>
       • 标记信息会保存在本机上,下次打开网页时继续保留;但要保证标记持久化,使用导出所有标记数据的功能<br/>
       • 在GOTO跳转输入框输入跳转页后可以使用回车快捷键执行跳转.使用前确保页面`key.enter`事件没有被覆盖<br/>
       • 导出功能在前端的TypeScript中实现,受浏览器引擎约束:过大数据量表格可能无法导出<br/>
+      • 过窄显示约束: 页面宽度小于max(720px,字段数*160px)*倍率时激活.尝试调整页面宽度,或缩放.如果确保在需求宽度下可正常显示,联系系统管理员修改倍率<br/>
       • 表高限制: 5-75行/页<br/>
       • 表页限制: 9999页.当页数溢出时,尝试修改表高.如果表高最大还无法显示,联系系统管理员<br/>
-      • 过窄显示约束: 页面宽度小于max(720px,字段数*160px)*倍率时激活.尝试调整页面宽度,或缩放.如果确保在需求宽度下可正常显示,联系系统管理员修改倍率<br/>
     </div>
   </div>
   <div
@@ -645,7 +692,7 @@
       :style="moduleTooltipStyle"
   >
     <div class="md-tooltip-content">
-      <i><strong>Vue标准表格组件</strong>@WaterRun</i><br/>
+      <i>Vue标准表格组件<strong>@WaterRun</strong></i><br/>
       <i>一个由Vue+TypeScript实现并挂载在页面中的标准表格组件</i><br/>
       组件从上到下依次为表头域,数据域和控件域<br/>
       表头域从左到右依次为表标题,(可选)表说明,功能子组件(包括标记子组件和导出子组件),表高控件<br/>
@@ -659,7 +706,7 @@
 
 <script setup lang="ts">
 import {ref, computed, onMounted, watch, nextTick, onUnmounted} from 'vue'
-import type {StdTableConfig, TableRequestParams} from '@/types/stdTable'
+import type {FieldState, StdTableConfig, TableRequestParams, StoredFieldState} from '@/types/stdTable'
 
 interface RowMarking {
   highlighted: boolean
@@ -703,6 +750,10 @@ const isMouseOverExportPopup = ref<boolean>(false)
 const markHoverTimer = ref<number | null>(null)
 const exportHoverTimer = ref<number | null>(null)
 
+const longPressTimer = ref<number | null>(null)
+const longPressFieldIndex = ref<number | null>(null)
+const isLongPressing = ref<boolean>(false)
+
 const isProcessing = ref<boolean>(false)
 const processingOperation = ref<string>('')
 
@@ -722,6 +773,14 @@ const STORAGE_KEY = 'Vue-StdTable-WaterRun'
 const currentTableId = ref<string>('')
 const markingsStorage = ref<Map<string, RowMarking>>(new Map())
 const forceUpdateTrigger = ref<number>(0)
+const fieldState = ref<FieldState>({
+  pinnedFieldIndex: null,
+  sortFieldIndex: null,
+  sortOrder: null
+})
+
+const FIELD_STATE_KEY = 'Vue-StdTable-FieldState-WaterRun'
+const originalFieldsOrder = ref<number[]>([]) // 保存原始字段顺序
 
 const generateTableId = (): string => {
   const tableName = displayTableName.value.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')
@@ -729,20 +788,158 @@ const generateTableId = (): string => {
   return `${tableName}_${simpleHash(path)}`
 }
 
-const generateRowId = (row: any, index: number): string => {
-  if (row.id !== undefined) return `id_${row.id}`
-  if (row.uuid !== undefined) return `uuid_${row.uuid}`
-  if (row.key !== undefined) return `key_${row.key}`
+// 字段状态存储管理
+const saveFieldStateToStorage = (): void => {
+  try {
+    const allFieldData: StoredFieldState = JSON.parse(localStorage.getItem(FIELD_STATE_KEY) || '{}')
+    allFieldData[currentTableId.value] = fieldState.value
+    localStorage.setItem(FIELD_STATE_KEY, JSON.stringify(allFieldData))
+  } catch {
+    // 静默处理存储错误
+  }
+}
 
-  const keyFields = displayFields.value.slice(0, 3)
-  const keyValues = keyFields.map(field => {
-    const value = row[field.key] || ''
-    return `${field.key}:${String(value).substring(0, 30)}`
-  }).join('|')
+const loadFieldStateFromStorage = (): void => {
+  try {
+    const allFieldData: StoredFieldState = JSON.parse(localStorage.getItem(FIELD_STATE_KEY) || '{}')
+    const tableFieldState = allFieldData[currentTableId.value]
 
-  const pageIndex = currentPage.value
-  const contentHash = simpleHash(keyValues)
-  return `p${pageIndex}_i${index}_${contentHash}`
+    if (tableFieldState) {
+      fieldState.value = tableFieldState
+    }
+  } catch {
+  }
+}
+
+// 字段重排序通用方法
+const reorderFields = (fields: any[], pinnedIndex: number | null): number[] => {
+  const fieldIndices = Array.from({length: fields.length}, (_, i) => i)
+
+  if (pinnedIndex !== null && pinnedIndex >= 0 && pinnedIndex < fields.length) {
+    // 将置顶字段移到第一位
+    const reordered = fieldIndices.filter(i => i !== pinnedIndex)
+    return [pinnedIndex, ...reordered]
+  }
+
+  return fieldIndices
+}
+
+// 数据排序处理函数
+const applySortToData = (data: any[], sortFieldIndex: number, sortOrder: 'asc' | 'desc'): any[] => {
+  if (sortFieldIndex < 0 || sortFieldIndex >= config.value.fields.length) {
+    return data
+  }
+
+  return [...data].sort((a, b) => {
+    let aValue: any, bValue: any
+
+    const originalFieldIndex = sortFieldIndex
+    if (Array.isArray(a)) {
+      aValue = a[originalFieldIndex] || ''
+      bValue = b[originalFieldIndex] || ''
+    } else {
+      const aValues = Object.values(a)
+      const bValues = Object.values(b)
+      aValue = aValues[originalFieldIndex] || ''
+      bValue = bValues[originalFieldIndex] || ''
+    }
+
+    const aStr = String(aValue).trim()
+    const bStr = String(bValue).trim()
+
+    const aNum = parseFloat(aStr)
+    const bNum = parseFloat(bStr)
+
+    let comparison = 0
+    if (!isNaN(aNum) && !isNaN(bNum)) {
+      comparison = aNum - bNum
+    } else {
+      comparison = aStr.localeCompare(bStr, 'zh-CN', { numeric: true })
+    }
+
+    return sortOrder === 'desc' ? -comparison : comparison
+  })
+}
+
+// 字段交互禁用状态
+const isFieldInteractionDisabled = computed<boolean>(() =>
+    isProcessing.value || shouldShowDataOverlay.value
+)
+
+// 字段工具提示
+const getFieldTooltip = (field: any): string => {
+  if (isFieldInteractionDisabled.value) {
+    return '数据加载中，字段操作暂时不可用'
+  }
+
+  const tips = []
+  tips.push('长按: 置顶/取消置顶')
+
+  if (!config.value.disableSort) {
+    tips.push('单击: 排序切换')
+    tips.push('右键: 清除排序')
+  }
+
+  if (field.isPinned) {
+    tips.push('(当前已置顶)')
+  }
+
+  if (field.sortState !== 'none') {
+    tips.push(`(当前${field.sortState === 'asc' ? '升序' : '降序'}排序)`)
+  }
+
+  return tips.join('\n')
+}
+
+// 切换字段置顶状态
+const toggleFieldPin = (fieldIndex: number): void => {
+  if (isFieldInteractionDisabled.value) return
+
+  if (fieldState.value.pinnedFieldIndex === fieldIndex) {
+    // 取消置顶
+    fieldState.value.pinnedFieldIndex = null
+  } else {
+    // 设置置顶
+    fieldState.value.pinnedFieldIndex = fieldIndex
+  }
+
+  saveFieldStateToStorage()
+}
+
+// 清除所有排序
+const clearSort = async (): Promise<void> => {
+  if (isFieldInteractionDisabled.value || config.value.disableSort) return
+
+  if (fieldState.value.sortFieldIndex !== null) {
+    isProcessing.value = true
+    processingOperation.value = '清除所有排序'
+    currentStatus.value = 'processing'
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      fieldState.value.sortFieldIndex = null
+      fieldState.value.sortOrder = null
+      saveFieldStateToStorage()
+
+    } finally {
+      isProcessing.value = false
+      processingOperation.value = ''
+      checkTableStatus()
+    }
+  }
+}
+
+const generateRowId = (row: any): string => {
+  let allValues: string = ''
+
+  if (Array.isArray(row)) {
+    allValues = row.map(value => String(value || '')).join('|')
+  } else {
+    allValues = Object.values(row).map(value => String(value || '')).join('|')
+  }
+
+  return `content_${simpleHash(allValues)}`
 }
 
 const saveToStorage = (): void => {
@@ -808,6 +1005,9 @@ const moduleTooltipStyle = ref<any>({})
 const moduleButton = ref<HTMLElement>()
 
 const heightSteps = [5, 10, 15, 30, 75]
+const heightInputValue = ref('')
+const isHeightInputFocused = ref(false)
+const heightInputDebounceTimer = ref<number | null>(null)
 
 const disabledTooltipVisible = ref<boolean>(false)
 const disabledTooltipStyle = ref<any>({})
@@ -908,12 +1108,23 @@ const displayFields = computed(() => {
 
   const processedFields = processFieldSizes(config.value.fields)
 
-  return processedFields.map((field, index) => ({
-    key: `field_${index}`,
-    title: field.title,
-    flexGrow: field.size,
-    size: field.size
-  }))
+  const fieldOrder = reorderFields(processedFields, fieldState.value.pinnedFieldIndex)
+
+  return fieldOrder.map((originalIndex) => {
+    const field = processedFields[originalIndex]
+    const isPinned = fieldState.value.pinnedFieldIndex === originalIndex
+    const isSortField = fieldState.value.sortFieldIndex === originalIndex
+
+    return {
+      key: `field_${originalIndex}`,
+      title: field.title,
+      flexGrow: field.size,
+      size: field.size,
+      originalIndex,
+      isPinned,
+      sortState: isSortField ? (fieldState.value.sortOrder || 'none') : 'none'
+    }
+  })
 })
 
 const hasDescription = computed<boolean>(() => (config.value.description || '').length > 0)
@@ -941,30 +1152,45 @@ const displayData = computed(() => {
 
   if (!tableData.value.length) return []
 
-  let result: any[] = []
+  let sourceData = tableData.value
 
-  if (window.loadTableData) {
-    result = tableData.value.slice(0, tableHeight.value)
+  if (fieldState.value.sortFieldIndex !== null && fieldState.value.sortOrder) {
+    // 有排序：使用缓存的全部数据
+    if (cachedFullData.value && cachedFullData.value.length > 0) {
+      const sortedAllData = applySortToData(cachedFullData.value, fieldState.value.sortFieldIndex, fieldState.value.sortOrder)
+
+      const startIndex = (currentPage.value - 1) * tableHeight.value
+      const endIndex = startIndex + tableHeight.value
+      sourceData = sortedAllData.slice(startIndex, endIndex)
+
+      // 更新总数基于排序后数据
+      totalCount.value = sortedAllData.length
+    }
   } else {
-    const startIndex = (currentPage.value - 1) * tableHeight.value
-    const endIndex = startIndex + tableHeight.value
-    result = tableData.value.slice(startIndex, endIndex)
+    // 无排序：正常分页逻辑
+    if (!window.loadTableData) {
+      const allData = window.stdTableConfig?.data ?? []
+      const startIndex = (currentPage.value - 1) * tableHeight.value
+      const endIndex = startIndex + tableHeight.value
+      sourceData = allData.slice(startIndex, endIndex)
+      totalCount.value = allData.length
+    }
   }
 
-  return result.map((row, index) => {
-    const rowId = generateRowId(row, index)
+  return sourceData.map((row) => {
+    const rowId = generateRowId(row)
     const marking = getRowMarking(rowId)
 
     const processedRow: any = {}
 
     if (Array.isArray(row)) {
-      displayFields.value.forEach((field, fieldIndex) => {
-        processedRow[field.key] = row[fieldIndex] || ''
+      displayFields.value.forEach((field) => {
+        processedRow[field.key] = row[field.originalIndex] || ''
       })
     } else {
       const values = Object.values(row)
-      displayFields.value.forEach((field, fieldIndex) => {
-        processedRow[field.key] = values[fieldIndex] || ''
+      displayFields.value.forEach((field) => {
+        processedRow[field.key] = values[field.originalIndex] || ''
       })
     }
 
@@ -977,6 +1203,55 @@ const displayData = computed(() => {
   })
 })
 
+// 添加缓存全部数据的变量
+const cachedFullData = ref<any[]>([])
+
+const cycleSortState = async (fieldIndex: number): Promise<void> => {
+  if (isFieldInteractionDisabled.value || config.value.disableSort) return
+  if (isLongPressing.value) return
+
+  isProcessing.value = true
+  const fieldTitle = config.value.fields[fieldIndex]?.title || `字段${fieldIndex + 1}`
+
+  try {
+    // 获取全部数据用于排序
+    if (!cachedFullData.value || cachedFullData.value.length === 0) {
+      processingOperation.value = `等待数据加载至内存 `
+      currentStatus.value = 'processing'
+
+      cachedFullData.value = await getFullTableData()
+    }
+
+    // 设置排序状态
+    if (fieldState.value.sortFieldIndex === fieldIndex) {
+      if (fieldState.value.sortOrder === 'desc') {
+        fieldState.value.sortOrder = 'asc'
+        processingOperation.value = `正在以字段 ${fieldTitle} 升序 排序表`
+      } else {
+        fieldState.value.sortFieldIndex = null
+        fieldState.value.sortOrder = null
+        processingOperation.value = `正在清除字段 [${fieldTitle}] 的排序`
+      }
+    } else {
+      fieldState.value.sortFieldIndex = fieldIndex
+      fieldState.value.sortOrder = 'desc'
+      processingOperation.value = `正在以字段 [${fieldTitle}] 降序 排序表`
+    }
+
+    currentStatus.value = 'processing'
+    await new Promise(resolve => setTimeout(resolve, 200))
+
+    saveFieldStateToStorage()
+
+  } catch (error) {
+    currentStatus.value = 'error'
+  } finally {
+    isProcessing.value = false
+    processingOperation.value = ''
+    checkTableStatus()
+  }
+}
+
 const emptyRowCount = computed<number>(() => {
   if (shouldShowDataOverlay.value) return 0
   const dataRows = displayData.value.length
@@ -986,6 +1261,41 @@ const emptyRowCount = computed<number>(() => {
 const totalPages = computed<number>(() => {
   return Math.max(1, Math.ceil(totalCount.value / tableHeight.value))
 })
+
+const startFieldLongPress = (fieldIndex: number, event: MouseEvent): void => {
+  if (isFieldInteractionDisabled.value) return
+
+  event.preventDefault()
+
+  longPressFieldIndex.value = fieldIndex
+  isLongPressing.value = false
+
+  if (longPressTimer.value !== null) {
+    clearTimeout(longPressTimer.value)
+  }
+
+  longPressTimer.value = window.setTimeout(() => {
+    if (longPressFieldIndex.value === fieldIndex) {
+      isLongPressing.value = true
+      toggleFieldPin(fieldIndex)
+      if (navigator.vibrate) {
+        navigator.vibrate(100)
+      }
+    }
+  }, 750)
+}
+
+const endFieldLongPress = (): void => {
+  if (longPressTimer.value !== null) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+
+  setTimeout(() => {
+    longPressFieldIndex.value = null
+    isLongPressing.value = false
+  }, 200)
+}
 
 const statusIconClass = computed<string>(() => {
   return (currentStatus.value === 'loading' || currentStatus.value === 'processing') ? 'breathing' : ''
@@ -1060,11 +1370,11 @@ const statusMainText = computed<string>(() => {
 const statusSubText = computed<string>(() => {
   switch (currentStatus.value) {
     case 'processing':
-      return '等待页面执行完成<br/>执行代码于浏览器的JavaScript中<br/>速度和当前设备性能强相关<br/>耐心等待,或修改筛选约束减少数据量<br/>或更换浏览器,或升级硬件配置'
+      return '等待页面执行完成<br/>执行速度和当前设备性能强相关<br/>耐心等待,或修改筛选约束减少数据量'
     case 'narrow':
       const ratio = config.value.minWidthRatio || 1.0
       const minWidth = parseInt(calculatedMinWidth.value)
-      return `当前表格的宽度窄于设定的最小值:<br/>${minWidth}px(倍率: ${ratio}x)<br/>显示质量无法保证<br/>为避免误读，阻止显示<br/>尝试拉宽页面，或调整缩放<br/>如果当前宽度下表确实可正常显示<br/>联系系统管理员修改设定倍率`
+      return `当前表格的宽度窄于设定的最小值:<br/>${minWidth}px(倍率: ${ratio}x)<br/>显示质量无法保证<br/>为避免误读，阻止显示<br/>尝试拉宽页面，或调整缩放<br/>`
     case 'loading':
       return '表格正在更新<br/>等待更新完毕'
     case 'empty':
@@ -1187,13 +1497,13 @@ const downloadFile = (content: string, filename: string): void => {
 }
 
 const toggleHighlight = (row: any): void => {
-  const rowId = row._rowId || generateRowId(row, 0)
+  const rowId = row._rowId || generateRowId(row)
   const current = getRowMarking(rowId)
   setRowMarking(rowId, {highlighted: !current.highlighted})
 }
 
 const toggleStrikethrough = (row: any): void => {
-  const rowId = row._rowId || generateRowId(row, 0)
+  const rowId = row._rowId || generateRowId(row)
   const current = getRowMarking(rowId)
   setRowMarking(rowId, {strikethrough: !current.strikethrough})
 }
@@ -1271,39 +1581,30 @@ const exportMarkingData = async (): Promise<void> => {
       highlightedData.length = 0
       strikethroughData.length = 0
 
-      fullData.forEach((row, index) => {
-        const possibleIds = [
-          generateRowId(row, index),
-          generateRowId(row, index % tableHeight.value),
-          `id_${row.id}`,
-          `uuid_${row.uuid}`,
-          `key_${row.key}`
-        ].filter(Boolean)
+      fullData.forEach((row) => {
+        const rowId = generateRowId(row)
+        const marking = markingsStorage.value.get(rowId)
 
-        for (const rowId of possibleIds) {
-          const marking = markingsStorage.value.get(rowId)
-          if (marking) {
-            const cleanRowData: any = {}
+        if (marking) {
+          const cleanRowData: any = {}
 
-            if (Array.isArray(row)) {
-              displayFields.value.forEach((field, fieldIndex) => {
-                cleanRowData[field.title] = row[fieldIndex] || ''
-              })
-            } else {
-              const values = Object.values(row)
-              displayFields.value.forEach((field, fieldIndex) => {
-                cleanRowData[field.title] = values[fieldIndex] || row[field.key] || ''
-              })
-            }
+          if (Array.isArray(row)) {
+            displayFields.value.forEach((field, fieldIndex) => {
+              cleanRowData[field.title] = row[fieldIndex] || ''
+            })
+          } else {
+            const values = Object.values(row)
+            displayFields.value.forEach((field, fieldIndex) => {
+              cleanRowData[field.title] = values[fieldIndex] || row[field.key] || ''
+            })
+          }
 
-            if (marking.highlighted) {
-              highlightedData.push(cleanRowData)
-            }
+          if (marking.highlighted) {
+            highlightedData.push(cleanRowData)
+          }
 
-            if (marking.strikethrough) {
-              strikethroughData.push(cleanRowData)
-            }
-            break
+          if (marking.strikethrough) {
+            strikethroughData.push(cleanRowData)
           }
         }
       })
@@ -1671,11 +1972,6 @@ const getFullTableData = async (): Promise<any[]> => {
         }
       } else {
         hasMore = false
-      }
-
-      if (currentPage > 1000) {
-        console.warn('导出数据页数超过安全限制，停止获取')
-        break
       }
     }
 
@@ -3137,28 +3433,92 @@ const positionSliderPopup = (): void => {
   })
 }
 
-const updateTableHeight = (): void => {
-  if (tableHeight.value < 5) tableHeight.value = 5
-  if (tableHeight.value > 75) tableHeight.value = 75
-
-  pendingTableHeight.value = tableHeight.value
-  localStorage.setItem(`tableHeight_${currentTableId.value}`, tableHeight.value.toString())
-  currentStatus.value = 'loading'
-  tableData.value = []
-  loadTableData()
+// 统一的表高更新方法
+const updateTableHeight = (newHeight: number): void => {
+  if (newHeight >= 5 && newHeight <= 75 && newHeight !== tableHeight.value) {
+    tableHeight.value = newHeight
+    pendingTableHeight.value = newHeight
+    currentStatus.value = 'loading'
+    tableData.value = []
+    loadTableData()
+  }
 }
 
+// 带验证的更新方法
+const updateTableHeightWithValidation = (value: number): void => {
+  let validatedValue = value
+
+  // 边界检查和修正
+  if (validatedValue < 5) {
+    validatedValue = 5
+    heightInputValue.value = '5'
+  } else if (validatedValue > 75) {
+    validatedValue = 75
+    heightInputValue.value = '75'
+  }
+
+  updateTableHeight(validatedValue)
+}
+
+// 输入框聚焦事件
+const handleHeightInputFocus = (): void => {
+  isHeightInputFocused.value = true
+}
+
+// 输入框输入事件处理（防抖）
+const handleHeightInputInput = (event: Event): void => {
+  const target = event.target as HTMLInputElement
+  const value = parseInt(target.value, 10)
+
+  // 如果输入无效，不处理业务逻辑，但允许显示
+  if (isNaN(value) || target.value.trim() === '') {
+    return
+  }
+
+  // 清除之前的定时器
+  if (heightInputDebounceTimer.value !== null) {
+    clearTimeout(heightInputDebounceTimer.value)
+  }
+
+  // 设置防抖定时器
+  heightInputDebounceTimer.value = window.setTimeout(() => {
+    updateTableHeightWithValidation(value)
+    heightInputDebounceTimer.value = null
+  }, 500)
+}
+
+// 输入框失去焦点事件处理
+const handleHeightInputBlur = (): void => {
+  isHeightInputFocused.value = false
+
+  const value = parseInt(heightInputValue.value, 10)
+
+  // 清除防抖定时器（因为要立即处理）
+  if (heightInputDebounceTimer.value !== null) {
+    clearTimeout(heightInputDebounceTimer.value)
+    heightInputDebounceTimer.value = null
+  }
+
+  // 如果输入无效，恢复到当前表高值
+  if (isNaN(value) || heightInputValue.value.trim() === '') {
+    heightInputValue.value = tableHeight.value.toString()
+    return
+  }
+
+  updateTableHeightWithValidation(value)
+}
+
+// 滑块更新方法
 const updateTableHeightFromSliderStep = (event: Event): void => {
   const target = event.target as HTMLInputElement
   const stepIndex = parseInt(target.value)
   const newHeight = heightSteps[stepIndex]
 
-  pendingTableHeight.value = newHeight
-  tableHeight.value = newHeight
-  localStorage.setItem(`tableHeight_${currentTableId.value}`, newHeight.toString())
-  currentStatus.value = 'loading'
-  tableData.value = []
-  loadTableData()
+  updateTableHeight(newHeight)
+  // 如果输入框未聚焦，同步更新显示值
+  if (!isHeightInputFocused.value) {
+    heightInputValue.value = newHeight.toString()
+  }
 }
 
 const goToPage = (page: number): void => {
@@ -3249,6 +3609,8 @@ const adminTooltipContent = computed<string>(() => {
   const minWidthRatio = config.value.minWidthRatio || 1.0
   const totalCountValue = config.value.totalCount || 0
   const data = config.value.data || []
+  const disableSort = config.value.disableSort
+  const dataUrl = config.value.dataUrl || ''
 
   let content = ''
 
@@ -3273,10 +3635,14 @@ const adminTooltipContent = computed<string>(() => {
     configDetails.push(`宽度倍率已调整为${minWidthRatio}x`)
   }
 
+  if (isWidthLimitIgnored.value) {
+    configDetails.push('忽略宽度限制')
+  }
+
   if (configDetails.length > 0) {
-    content += `<strong>配置参数:</strong> ${configDetails.join(', ')}<br/><br/>`
+    content += `<br/><strong>配置参数:</strong> ${configDetails.join(', ')}<br/><br/>`
   } else {
-    content += `<strong>所有配置参数均为默认值.</strong><br/><br/>`
+    content += `<br/><strong>所有配置参数均为默认值.</strong><br/><br/>`
   }
 
   if (comment) {
@@ -3289,27 +3655,24 @@ const adminTooltipContent = computed<string>(() => {
   if (isMarkingDisabled.value) restrictions.push('标记控件')
   if (isOutputDisabled.value) restrictions.push('导出控件')
   if (isHeightAdjustDisabled.value) restrictions.push('高度调节控件')
+  if (disableSort) restrictions.push('排序功能')
 
-  const specialSettings: string[] = []
-  if (isWidthLimitIgnored.value) specialSettings.push('忽略宽度限制')
-
-  if (restrictions.length === 0 && specialSettings.length === 0) {
+  if (restrictions.length === 0) {
     content += `<strong>管理员未禁用任何功能.</strong><br/>`
   } else {
-    if (specialSettings.length > 0) {
-      content += `<strong>管理员已设置:</strong> ${specialSettings.join(', ')}<br/>`
-    }
-    if (restrictions.length > 0) {
-      content += `<strong>管理员已禁用:</strong> ${restrictions.join(', ')}<br/>`
-    }
+    content += `<strong>管理员已禁用:</strong> ${restrictions.join(', ')}<br/>`
   }
 
   content += `<br/>`
 
-  if (data.length === 0 && totalCountValue === 0) {
-    content += `<strong>由空数据构造.考虑使用异步加载场景.</strong>`
-  } else if (totalCountValue > 0) {
-    // 这部分在原代码中是空的，保持原样
+  if (data.length === 0) {
+    if (totalCountValue > 0) {
+      content += `<strong>使用异步加载模式(总数据量: ${totalCountValue})</strong>`
+    } else if (dataUrl) {
+      content += `<strong>由空数据构造.数据链不为空.表异步加载.</strong>`
+    } else {
+      content += `<strong>由空数据构造.数据链也为空.</strong>`
+    }
   } else {
     content += `<strong>由非空数据构造(数据量: ${data.length})</strong>`
   }
@@ -3677,17 +4040,11 @@ const hideHeightSlider = (): void => {
 
 const reloadData = (params?: Partial<TableRequestParams>): void => {
   if (params?.page) currentPage.value = params.page
-  if (params?.pageSize) {
-    tableHeight.value = params.pageSize
-    pendingTableHeight.value = params.pageSize
-  }
   loadTableData()
 }
 
 const updateConfig = (newConfig: StdTableConfig): void => {
   config.value = newConfig
-  tableHeight.value = newConfig.initialHeight || 10
-  pendingTableHeight.value = tableHeight.value
   currentPage.value = newConfig.currentPage || 1
   loadTableData()
 }
@@ -3703,28 +4060,41 @@ const getState = () => {
   }
 }
 
+watch(tableHeight, (newValue) => {
+  if (!isHeightInputFocused.value) {
+    heightInputValue.value = newValue.toString()
+  }
+})
+
 onMounted(() => {
   currentTableId.value = generateTableId()
   loadFromStorage()
 
-  const savedHeight = localStorage.getItem(`tableHeight_${currentTableId.value}`)
-  if (savedHeight) {
-    const height = parseInt(savedHeight)
-    if (height >= 5 && height <= 75) {
-      tableHeight.value = height
-      pendingTableHeight.value = height
-    }
+  loadFieldStateFromStorage()
+
+  if (config.value.fields) {
+    originalFieldsOrder.value = Array.from({length: config.value.fields.length}, (_, i) => i)
+  }
+
+  if (window.stdTableConfig?.initialHeight) {
+    const initialHeight = Math.max(5, Math.min(75, window.stdTableConfig.initialHeight))
+    tableHeight.value = initialHeight
+    pendingTableHeight.value = initialHeight
+  } else {
+    tableHeight.value = 15
+    pendingTableHeight.value = 15
   }
 
   if (window.stdTableConfig) {
     config.value = window.stdTableConfig
-    if (!savedHeight) {
-      const initialHeight = window.stdTableConfig.initialHeight || 15
-      tableHeight.value = Math.max(5, Math.min(75, initialHeight))
-      pendingTableHeight.value = tableHeight.value
-    }
     currentPage.value = window.stdTableConfig.currentPage || 1
   }
+
+  if (!window.loadTableData && window.stdTableConfig?.data) {
+    cachedFullData.value = window.stdTableConfig.data
+  }
+
+  heightInputValue.value = tableHeight.value.toString()
 
   loadTableData()
   window.addEventListener('resize', handleResize)
@@ -3734,6 +4104,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   saveToStorage()
+  saveFieldStateToStorage()
   window.removeEventListener('resize', handleResize)
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('beforeunload', saveToStorage)
@@ -3749,6 +4120,15 @@ onUnmounted(() => {
   if (exportHoverTimer.value !== null) {
     clearTimeout(exportHoverTimer.value)
     exportHoverTimer.value = null
+  }
+  if (longPressTimer.value !== null) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+
+  if (heightInputDebounceTimer.value !== null) {
+    clearTimeout(heightInputDebounceTimer.value)
+    heightInputDebounceTimer.value = null
   }
 })
 
@@ -3770,7 +4150,650 @@ watch(isHeightSliderVisible, (visible) => {
 defineExpose({
   reloadData,
   updateConfig,
-  getState
+  getState,
+
+  api: (() => {
+    // 内部辅助函数
+    const getAllDataInternal = async (): Promise<any[]> => {
+      try {
+        const fullData = await getFullTableData()
+        return fullData.map((row: any) => {
+          const cleanRow: Record<string, any> = {}
+          if (Array.isArray(row)) {
+            displayFields.value.forEach((field: any, index: number) => {
+              cleanRow[field.title] = row[index] || ''
+            })
+          } else {
+            const values = Object.values(row)
+            displayFields.value.forEach((field: any, index: number) => {
+              cleanRow[field.title] = values[index] || ''
+            })
+          }
+          return cleanRow
+        })
+      } catch (error) {
+        console.error('获取全部数据失败:', error)
+        return []
+      }
+    }
+
+    // 返回API对象
+    return {
+      // 数据获取 API
+      getCurrentPageData: (): any[] => {
+        return displayData.value.map((row: any) => {
+          const cleanRow: Record<string, any> = {}
+          displayFields.value.forEach((field: any) => {
+            cleanRow[field.title] = row[field.key] || ''
+          })
+          return cleanRow
+        })
+      },
+
+      getCurrentPageRawData: (): any[] => {
+        return displayData.value
+      },
+
+      getAllData: getAllDataInternal,
+
+      getMarkedData: async (): Promise<{ highlighted: any[], strikethrough: any[], total: number }> => {
+        try {
+          const fullData = await getFullTableData()
+          const highlightedData: any[] = []
+          const strikethroughData: any[] = []
+
+          fullData.forEach((row: any) => {
+            const rowId = generateRowId(row)
+            const marking = markingsStorage.value.get(rowId)
+
+            if (marking) {
+              const cleanRow: Record<string, any> = {}
+              if (Array.isArray(row)) {
+                displayFields.value.forEach((field: any, index: number) => {
+                  cleanRow[field.title] = row[index] || ''
+                })
+              } else {
+                const values = Object.values(row)
+                displayFields.value.forEach((field: any, index: number) => {
+                  cleanRow[field.title] = values[index] || ''
+                })
+              }
+
+              if (marking.highlighted) {
+                highlightedData.push(cleanRow)
+              }
+              if (marking.strikethrough) {
+                strikethroughData.push(cleanRow)
+              }
+            }
+          })
+
+          return {
+            highlighted: highlightedData,
+            strikethrough: strikethroughData,
+            total: highlightedData.length + strikethroughData.length
+          }
+        } catch (error) {
+          console.error('获取标记数据失败:', error)
+          return { highlighted: [], strikethrough: [], total: 0 }
+        }
+      },
+
+      getFilteredData: async (): Promise<any[]> => {
+        try {
+          if (fieldState.value.sortFieldIndex !== null && fieldState.value.sortOrder) {
+            const fullData = await getFullTableData()
+            const sortedData = applySortToData(fullData, fieldState.value.sortFieldIndex, fieldState.value.sortOrder)
+
+            return sortedData.map((row: any) => {
+              const cleanRow: Record<string, any> = {}
+              if (Array.isArray(row)) {
+                displayFields.value.forEach((field: any, index: number) => {
+                  cleanRow[field.title] = row[index] || ''
+                })
+              } else {
+                const values = Object.values(row)
+                displayFields.value.forEach((field: any, index: number) => {
+                  cleanRow[field.title] = values[index] || ''
+                })
+              }
+              return cleanRow
+            })
+          } else {
+            return await getAllDataInternal()
+          }
+        } catch (error) {
+          console.error('获取筛选数据失败:', error)
+          return []
+        }
+      },
+
+      // 状态获取 API
+      getTableStatus: (): Record<string, any> => {
+        return {
+          currentPage: currentPage.value,
+          totalPages: totalPages.value,
+          pageSize: tableHeight.value,
+          totalCount: totalCount.value,
+          status: currentStatus.value,
+          isLoading: currentStatus.value === 'loading',
+          isError: currentStatus.value === 'error',
+          isProcessing: isProcessing.value
+        }
+      },
+
+      getFieldsInfo: (): Record<string, any> => {
+        return {
+          original: config.value.fields,
+          display: displayFields.value,
+          pinned: fieldState.value.pinnedFieldIndex,
+          sorted: fieldState.value.sortFieldIndex !== null ? {
+            fieldIndex: fieldState.value.sortFieldIndex,
+            order: fieldState.value.sortOrder,
+            fieldName: config.value.fields?.[fieldState.value.sortFieldIndex]?.title
+          } : null
+        }
+      },
+
+      getMarkingStats: (): Record<string, number> => {
+        let highlightedCount = 0
+        let strikethroughCount = 0
+
+        markingsStorage.value.forEach((marking: any) => {
+          if (marking.highlighted) highlightedCount++
+          if (marking.strikethrough) strikethroughCount++
+        })
+
+        return {
+          highlighted: highlightedCount,
+          strikethrough: strikethroughCount,
+          total: highlightedCount + strikethroughCount
+        }
+      },
+
+      getConfig: (): Record<string, any> => {
+        return {
+          ...config.value,
+          tableId: currentTableId.value,
+          fieldState: fieldState.value
+        }
+      },
+
+      // 基础操作 API
+      gotoPage: (page: number): boolean => {
+        if (page >= 1 && page <= totalPages.value) {
+          goToPage(page)
+          return true
+        }
+        return false
+      },
+
+      setTableHeight: (height: number): boolean => {
+        if (height >= 5 && height <= 75) {
+          updateTableHeight(height)
+          return true
+        }
+        return false
+      },
+
+      reload: (params: Record<string, any> = {}): void => {
+        reloadData(params)
+      },
+
+      // 标记操作 API
+      clearAllMarks: (): boolean => {
+        try {
+          clearAllMarkings()
+          return true
+        } catch (error) {
+          console.error('清除标记失败:', error)
+          return false
+        }
+      },
+
+      clearHighlights: (): boolean => {
+        try {
+          clearAllHighlights()
+          return true
+        } catch (error) {
+          return false
+        }
+      },
+
+      clearStrikethroughs: (): boolean => {
+        try {
+          clearAllStrikethroughs()
+          return true
+        } catch (error) {
+          return false
+        }
+      },
+
+      markRow: (rowIndex: number, type: string = 'highlight'): boolean => {
+        try {
+          const row = displayData.value[rowIndex]
+          if (!row) return false
+
+          if (type === 'highlight') {
+            toggleHighlight(row)
+          } else if (type === 'strikethrough') {
+            toggleStrikethrough(row)
+          }
+          return true
+        } catch (error) {
+          return false
+        }
+      },
+
+      // 字段操作 API
+      pinField: (fieldIndex: number): boolean => {
+        try {
+          if (fieldIndex >= 0 && fieldIndex < config.value.fields.length) {
+            toggleFieldPin(fieldIndex)
+            return true
+          }
+          return false
+        } catch (error) {
+          return false
+        }
+      },
+
+      sortByField: (fieldIndex: number, order: string = 'desc'): boolean => {
+        try {
+          if (fieldIndex >= 0 && fieldIndex < config.value.fields.length) {
+            fieldState.value.sortFieldIndex = fieldIndex
+            fieldState.value.sortOrder = order as 'asc' | 'desc'
+            saveFieldStateToStorage()
+            return true
+          }
+          return false
+        } catch (error) {
+          return false
+        }
+      },
+
+      clearSort: (): boolean => {
+        try {
+          clearSort()
+          return true
+        } catch (error) {
+          return false
+        }
+      },
+
+      // 导出 API
+      exportData: async (format: string): Promise<boolean> => {
+        try {
+          const formatMap: Record<string, () => Promise<void>> = {
+            'csv': exportToCSV,
+            'json': exportToJSON,
+            'html': exportToHTML,
+            'markdown': exportToMarkdown,
+            'xml': exportToXML,
+            'yml': exportToYML,
+            'toml': exportToTOML,
+            'sql': exportToSQL,
+            'python': exportToPython,
+            'text': exportToText
+          }
+
+          const exportFunction = formatMap[format.toLowerCase()]
+          if (exportFunction) {
+            await exportFunction()
+            return true
+          } else {
+            console.error('不支持的导出格式:', format)
+            return false
+          }
+        } catch (error) {
+          console.error('导出失败:', error)
+          return false
+        }
+      },
+
+      exportMarkingData: async (): Promise<boolean> => {
+        try {
+          await exportMarkingData()
+          return true
+        } catch (error) {
+          return false
+        }
+      },
+
+      // 查询 API
+      queryData: async (predicate: (row: any) => boolean): Promise<any[]> => {
+        try {
+          const allData = await getAllDataInternal()
+          return allData.filter(predicate)
+        } catch (error) {
+          console.error('查询数据失败:', error)
+          return []
+        }
+      },
+
+      getUniqueValues: async (fieldName: string): Promise<any[]> => {
+        try {
+          const allData = await getAllDataInternal()
+          const values = allData.map((row: any) => row[fieldName]).filter((value: any) => value !== undefined && value !== null && value !== '')
+          return [...new Set(values)]
+        } catch (error) {
+          console.error('获取唯一值失败:', error)
+          return []
+        }
+      },
+
+      getFieldStats: async (fieldName: string): Promise<Record<string, any> | null> => {
+        try {
+          const allData = await getAllDataInternal()
+          const values = allData.map((row: any) => row[fieldName]).filter((value: any) => value !== undefined && value !== null && value !== '')
+
+          const numericValues = values.map((v: any) => parseFloat(v)).filter((v: number) => !isNaN(v))
+
+          return {
+            total: values.length,
+            unique: new Set(values).size,
+            hasNumeric: numericValues.length > 0,
+            numeric: numericValues.length > 0 ? {
+              min: Math.min(...numericValues),
+              max: Math.max(...numericValues),
+              avg: numericValues.reduce((a: number, b: number) => a + b, 0) / numericValues.length,
+              sum: numericValues.reduce((a: number, b: number) => a + b, 0)
+            } : null
+          }
+        } catch (error) {
+          console.error('获取字段统计失败:', error)
+          return null
+        }
+      },
+
+      searchInField: async (fieldName: string, searchTerm: string, caseSensitive: boolean = false): Promise<any[]> => {
+        try {
+          const allData = await getAllDataInternal()
+          const searchValue = caseSensitive ? searchTerm : searchTerm.toLowerCase()
+
+          return allData.filter((row: any) => {
+            const fieldValue = row[fieldName]
+            if (fieldValue === undefined || fieldValue === null) return false
+
+            const compareValue = caseSensitive ? fieldValue.toString() : fieldValue.toString().toLowerCase()
+            return compareValue.includes(searchValue)
+          })
+        } catch (error) {
+          return []
+        }
+      },
+
+      // 存储管理 API
+      clearLocalStorage: (): boolean => {
+        try {
+          localStorage.removeItem(STORAGE_KEY)
+          localStorage.removeItem(FIELD_STATE_KEY)
+          markingsStorage.value.clear()
+          fieldState.value = {
+            pinnedFieldIndex: null,
+            sortFieldIndex: null,
+            sortOrder: null
+          }
+          forceUpdateTrigger.value++
+          return true
+        } catch (error) {
+          return false
+        }
+      },
+
+      clearMarkingStorage: (): boolean => {
+        try {
+          const allData: Record<string, any> = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+          delete allData[currentTableId.value]
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(allData))
+          markingsStorage.value.clear()
+          forceUpdateTrigger.value++
+          return true
+        } catch (error) {
+          return false
+        }
+      },
+
+      clearFieldStateStorage: (): boolean => {
+        try {
+          const allFieldData: Record<string, any> = JSON.parse(localStorage.getItem(FIELD_STATE_KEY) || '{}')
+          delete allFieldData[currentTableId.value]
+          localStorage.setItem(FIELD_STATE_KEY, JSON.stringify(allFieldData))
+          fieldState.value = {
+            pinnedFieldIndex: null,
+            sortFieldIndex: null,
+            sortOrder: null
+          }
+          return true
+        } catch (error) {
+          return false
+        }
+      },
+
+      getStorageInfo: (): Record<string, any> | null => {
+        try {
+          const markingData = localStorage.getItem(STORAGE_KEY)
+          const fieldData = localStorage.getItem(FIELD_STATE_KEY)
+
+          return {
+            markingSize: markingData ? markingData.length : 0,
+            fieldStateSize: fieldData ? fieldData.length : 0,
+            totalSize: (markingData?.length || 0) + (fieldData?.length || 0),
+            currentTableMarks: markingsStorage.value.size,
+            currentTableId: currentTableId.value
+          }
+        } catch (error) {
+          return null
+        }
+      },
+
+      // 超控操作 API
+      override: {
+        enableMarking: (): boolean => {
+          const originalDisabled = config.value.disableMarking
+          config.value.disableMarking = false
+          return originalDisabled || false
+        },
+
+        enableOutput: (): boolean => {
+          const originalDisabled = config.value.disableOutput
+          config.value.disableOutput = false
+          return originalDisabled || false
+        },
+
+        enableHeightAdjust: (): boolean => {
+          const originalDisabled = config.value.disableHeightAdjust
+          config.value.disableHeightAdjust = false
+          return originalDisabled || false
+        },
+
+        enableSort: (): boolean => {
+          const originalDisabled = config.value.disableSort
+          config.value.disableSort = false
+          return originalDisabled || false
+        },
+
+        ignoreWidthLimit: (): boolean => {
+          const originalIgnored = config.value.ignoreWidthLimit
+          config.value.ignoreWidthLimit = true
+          checkTableStatus()
+          return !originalIgnored
+        },
+
+        enableAll: (): Record<string, any> => {
+          const original = {
+            disableMarking: config.value.disableMarking,
+            disableOutput: config.value.disableOutput,
+            disableHeightAdjust: config.value.disableHeightAdjust,
+            disableSort: config.value.disableSort,
+            ignoreWidthLimit: config.value.ignoreWidthLimit
+          }
+
+          config.value.disableMarking = false
+          config.value.disableOutput = false
+          config.value.disableHeightAdjust = false
+          config.value.disableSort = false
+          config.value.ignoreWidthLimit = true
+
+          checkTableStatus()
+          return original
+        },
+
+        restoreConfig: (originalConfig: Record<string, any>): void => {
+          if (originalConfig) {
+            Object.assign(config.value, originalConfig)
+            checkTableStatus()
+          }
+        },
+
+        forceTableHeight: (height: number): boolean => {
+          if (height >= 1 && height <= 100) {
+            tableHeight.value = height
+            pendingTableHeight.value = height
+            heightInputValue.value = height.toString()
+            return true
+          }
+          return false
+        },
+
+        forcePageSize: function(size: number): boolean {
+          return this.forceTableHeight(size)
+        },
+
+        bypassProcessingLock: (): void => {
+          isProcessing.value = false
+          processingOperation.value = ''
+          currentStatus.value = ''
+          checkTableStatus()
+        }
+      },
+
+      // 高级功能 API
+      advanced: {
+        getRawConfig: (): Record<string, any> => config.value,
+
+        setRawConfig: (newConfig: Record<string, any>): void => {
+          config.value = { ...config.value, ...newConfig }
+          checkTableStatus()
+        },
+
+        getRawFieldState: (): Record<string, any> => fieldState.value,
+
+        setRawFieldState: (newState: Record<string, any>): void => {
+          fieldState.value = { ...fieldState.value, ...newState }
+          saveFieldStateToStorage()
+        },
+
+        forceUpdate: (): void => {
+          forceUpdateTrigger.value++
+        },
+
+        getInternalState: (): Record<string, any> => {
+          return {
+            tableHeight: tableHeight.value,
+            pendingTableHeight: pendingTableHeight.value,
+            currentPage: currentPage.value,
+            tableData: tableData.value,
+            totalCount: totalCount.value,
+            currentStatus: currentStatus.value,
+            isProcessing: isProcessing.value,
+            processingOperation: processingOperation.value,
+            cachedFullData: cachedFullData.value,
+            markingsStorage: Object.fromEntries(markingsStorage.value),
+            fieldState: fieldState.value,
+            currentTableId: currentTableId.value
+          }
+        },
+
+        setInternalState: (state: Record<string, any>): void => {
+          if (state.tableHeight !== undefined) tableHeight.value = state.tableHeight
+          if (state.pendingTableHeight !== undefined) pendingTableHeight.value = state.pendingTableHeight
+          if (state.currentPage !== undefined) currentPage.value = state.currentPage
+          if (state.tableData !== undefined) tableData.value = state.tableData
+          if (state.totalCount !== undefined) totalCount.value = state.totalCount
+          if (state.currentStatus !== undefined) currentStatus.value = state.currentStatus
+          if (state.isProcessing !== undefined) isProcessing.value = state.isProcessing
+          if (state.processingOperation !== undefined) processingOperation.value = state.processingOperation
+          if (state.cachedFullData !== undefined) cachedFullData.value = state.cachedFullData
+          if (state.markingsStorage !== undefined) {
+            markingsStorage.value = new Map(Object.entries(state.markingsStorage))
+          }
+          if (state.fieldState !== undefined) fieldState.value = state.fieldState
+
+          forceUpdateTrigger.value++
+          checkTableStatus()
+        },
+
+        executeCustomFunction: (fn: (context: Record<string, any>) => any): any => {
+          try {
+            return fn({
+              displayData: displayData.value,
+              config: config.value,
+              fieldState: fieldState.value,
+              markingsStorage: markingsStorage.value,
+              tableHeight: tableHeight.value,
+              currentPage: currentPage.value,
+              totalCount: totalCount.value,
+              currentStatus: currentStatus.value,
+              displayFields: displayFields.value
+            })
+          } catch (error) {
+            console.error('执行自定义函数失败:', error)
+            return null
+          }
+        },
+
+        debug: {
+          logState: (): void => {
+            console.group('Table Debug Info')
+            console.log('Config:', config.value)
+            console.log('Field State:', fieldState.value)
+            console.log('Table Status:', {
+              height: tableHeight.value,
+              page: currentPage.value,
+              total: totalCount.value,
+              status: currentStatus.value
+            })
+            console.log('Markings:', Object.fromEntries(markingsStorage.value))
+            console.log('Display Fields:', displayFields.value)
+            console.log('Display Data:', displayData.value)
+            console.groupEnd()
+          },
+
+          testDataLoad: async (): Promise<any[] | null> => {
+            try {
+              const data = await getFullTableData()
+              console.log('Test Data Load Success:', data.length, 'records')
+              return data
+            } catch (error) {
+              console.error('Test Data Load Failed:', error)
+              return null
+            }
+          },
+
+          simulateError: (errorType: string = 'generic'): void => {
+            const errorMap: Record<string, string> = {
+              'generic': 'error',
+              'loading': 'loading',
+              'empty': 'empty',
+              'noheader': 'noheader',
+              'pagelimit': 'pagelimit',
+              'narrow': 'narrow'
+            }
+
+            currentStatus.value = errorMap[errorType] || 'error'
+          },
+
+          resetToNormal: (): void => {
+            currentStatus.value = ''
+            isProcessing.value = false
+            processingOperation.value = ''
+            checkTableStatus()
+          }
+        }
+      }
+    }
+  })()
 })
 </script>
 
@@ -4856,5 +5879,127 @@ defineExpose({
 .md-goto-spinner.disabled .md-spinner-button {
   cursor: not-allowed;
   opacity: 0.3;
+}
+
+.md-field-cell {
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.md-field-cell:hover:not(.md-field-disabled) {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.md-field-cell.md-field-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.md-field-cell.md-field-pinned {
+  font-weight: 700;
+  background: rgba(97, 97, 97, 0.12);
+}
+
+.md-field-cell.md-field-sorted {
+  font-style: italic;
+}
+
+.md-field-cell.md-field-pinned.md-field-sorted {
+  background: rgba(97, 97, 97, 0.02);
+}
+
+.md-field-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.md-field-icon-left {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 24px;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+.md-field-title {
+  flex: 1;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+.md-field-icon-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 24px;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+.md-field-icon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+.md-pin-icon {
+  filter: hue-rotate(200deg) saturate(1.2);
+}
+
+.md-sort-icon {
+  filter: hue-rotate(30deg) saturate(1.1);
+}
+
+.md-field-cell:hover .md-field-icon {
+  opacity: 1;
+}
+
+.md-data-row .md-data-cell:first-child {
+  font-weight: 500;
+}
+
+.md-data-row .md-data-cell.md-data-cell-pinned {
+  font-weight: 700;
+  background: rgba(97, 97, 97, 0.06);
+}
+
+.md-field-cell.md-field-long-pressing {
+  background: rgba(97, 97, 97, 0.2);
+  transform: scale(0.98);
+  transition: all 0.1s ease;
+}
+
+.md-field-cell.md-field-long-pressing::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg,
+  transparent 25%,
+  rgba(97, 97, 97, 0.1) 25%,
+  rgba(97, 97, 97, 0.1) 50%,
+  transparent 50%,
+  transparent 75%,
+  rgba(97, 97, 97, 0.1) 75%);
+  background-size: 8px 8px;
+  animation: move-stripes 0.5s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes move-stripes {
+  0% { background-position: 0 0; }
+  100% { background-position: 8px 8px; }
 }
 </style>

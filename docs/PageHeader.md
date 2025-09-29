@@ -20,7 +20,7 @@
 ![一个展开的PageHeader](./assets/展开的PageHeader.png)  
 *一个展开的PageHeader示例*
 
-## API参考
+## 参数
 
 ```typescript
 export interface PageHeaderProps {

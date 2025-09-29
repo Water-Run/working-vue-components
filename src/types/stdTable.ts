@@ -1,7 +1,7 @@
 /**
  * 标准化表格组件类型定义
  * @author WaterRun
- * @date 2025-09-26
+ * @date 2025-09-29
  * @file stdTable.ts
  */
 
@@ -49,6 +49,8 @@ export interface StdTableConfig {
     disableOutput?: boolean;
     /** 管理员注释，可选 */
     adminComment?: string;
+    /** 禁用排序功能，可选 */
+    disableSort?: boolean;
 }
 
 // 表格状态类型
@@ -267,14 +269,37 @@ export interface ProcessedField {
     size: number;
 }
 
-// 处理后的数据行结构
-export interface ProcessedRow {
-    /** 行唯一标识 */
-    _rowId: string;
-    /** 是否高亮 */
-    _highlighted: boolean;
-    /** 是否有删除线 */
-    _strikethrough: boolean;
-    /** 其他字段数据 */
-    [key: string]: any;
+// 处理后的字段结构
+export interface ProcessedField {
+    /** 内部唯一标识 */
+    key: string;
+    /** 显示标题 */
+    title: string;
+    /** Flex增长系数 */
+    flexGrow: number;
+    /** 权重大小 */
+    size: number;
+    /** 原始字段索引 */
+    originalIndex: number;
+    /** 是否置顶 */
+    isPinned: boolean;
+    /** 排序状态 */
+    sortState: 'none' | 'asc' | 'desc';
 }
+
+// 字段置顶和排序状态
+export interface FieldState {
+    /** 置顶字段的索引 */
+    pinnedFieldIndex: number | null;
+    /** 排序字段的索引 */
+    sortFieldIndex: number | null;
+    /** 排序方向 */
+    sortOrder: 'asc' | 'desc' | null;
+}
+
+// 字段状态存储结构
+export interface StoredFieldState {
+    /** 表格ID到字段状态的映射 */
+    [tableId: string]: FieldState;
+}
+
