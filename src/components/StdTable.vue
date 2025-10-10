@@ -719,7 +719,7 @@ interface StoredMarkingData {
   }
 }
 
-const maxPages = 9999
+const maxPages = 10500
 
 const isHeightSliderVisible = ref<boolean>(false)
 const tableHeight = ref<number>(15)
