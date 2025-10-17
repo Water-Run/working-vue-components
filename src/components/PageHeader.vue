@@ -1,7 +1,7 @@
 <!--
   标准化页面标题栏组件
   @author WaterRun
-  @date 2025-09-28
+  @date 2025-10-10
 -->
 
 <template>
@@ -33,7 +33,7 @@
       <div v-if="isHelpVisible" class="md-help-panel">
         <div class="md-help-content" v-html="helpContent"></div>
         <div class="md-component-info">
-          <em>Vue标准表头组件</em><strong>@WaterRun</strong>
+          <em>Vue标准页头组件</em><strong>@WaterRun</strong>
         </div>
       </div>
     </transition>

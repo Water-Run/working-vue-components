@@ -1,7 +1,7 @@
 <!--
   标准化页面表格组件
   @author WaterRun
-  @date 2025-09-29
+  @date 2025-10-10
 -->
 
 <template>
@@ -683,7 +683,7 @@
       • 导出功能在前端的TypeScript中实现,受浏览器引擎约束:过大数据量表格可能无法导出<br/>
       • 过窄显示约束: 页面宽度小于max(720px,字段数*160px)*倍率时激活.尝试调整页面宽度,或缩放.如果确保在需求宽度下可正常显示,联系系统管理员修改倍率<br/>
       • 表高限制: 5-75行/页<br/>
-      • 表页限制: 9999页.当页数溢出时,尝试修改表高.如果表高最大还无法显示,联系系统管理员<br/>
+      • 表页限制: 99999页.当页数溢出时,尝试修改表高.如果表高最大还无法显示,联系系统管理员<br/>
     </div>
   </div>
   <div
@@ -719,7 +719,7 @@ interface StoredMarkingData {
   }
 }
 
-const maxPages = 10500
+const maxPages = 99999
 
 const isHeightSliderVisible = ref<boolean>(false)
 const tableHeight = ref<number>(15)
@@ -2083,7 +2083,7 @@ ${separator}
 ${rows}
 
 ---
-*由 Vue标准表格组件@WaterRun 导出 | 组件自动生成的HTML `
+由 Vue标准表格组件@WaterRun 导出 | 组件自动生成的HTML `
 
     downloadFile(content, `${generateFileName('Markdown')}.md`)
   } finally {
@@ -5250,22 +5250,22 @@ defineExpose({
 .md-table-field-header {
   display: flex;
   background: linear-gradient(135deg, #f8f9fa 0%, #f1f3f4 100%);
-  border-bottom: 2px solid #5f6368;
+  border-bottom: 1px solid #5f6368;
   width: 100%;
 }
 
 .md-field-cell {
-  padding: 16px 6px;
+  padding: 16px 2px;
   font-weight: 500;
   color: #202124;
   text-align: center;
-  border-right: 1px solid #dadce0;
+  border-right: 2px solid #dadce0;
   font-size: 14px;
-  letter-spacing: 0.25px;
+  letter-spacing: 0.2px;
   flex-shrink: 1;
   flex-grow: 1;
-  min-width: 60px;
-  overflow: hidden;
+  min-width: 40px;
+  overflow: auto;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
